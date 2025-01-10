@@ -1,10 +1,17 @@
 import json
+import os
+
 import requests
 from datetime import datetime, timedelta
 import yaml
 
 def load_yaml(filename):
-    with open(filename, 'r', encoding='utf-8') as file:
+
+    # load app.py path
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, filename)
+
+    with open(config_path, 'r', encoding='utf-8') as file:
         return yaml.safe_load(file)
 
 def merge_configs(default_config, user_config):
@@ -121,6 +128,7 @@ menu_corner_map = {
 def main():
     default_config = load_yaml('config.default.yaml')  # 기본 설정 YAML 파일 로드
     user_config = load_yaml('config.user.yaml')  # 사용자 설정 YAML 파일 로드
+
     merged_config = merge_configs(default_config, user_config)
 
     if not 로그인(merged_config):  # 로그인 실패 시 이후 로직 중단
