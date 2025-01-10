@@ -1,0 +1,18 @@
+# 기본 설정
+osDvCd: ""                      # 운영 체제 구분 코드
+userCurrAppVer: "1.2.3"        # 현재 애플리케이션 버전
+mobiPhTrmlId: ""                # 모바일 단말기 ID
+bizplcCd: "196274"              # 사업장 코드
+mealDvCd: "0002"                # 식사 구역 종류 코드
+rownum: 9                       # 행 번호
+dlvrPlcFloorNo: "9"            # 배달 장소 층 번호
+alphabetSeq: "I"                # 알파벳 시퀀스
+dlvrPlcFloorSeq: 9              # 배달 장소 층 시퀀스
+remainDeliQty: -1               # 남은 배달 수량
+dlvrPlcNm: "현대오토에버 본사"  # 배달 장소 이름
+ordQty: 1                       # 주문 수량
+totalCount: 12                  # 총 수량
+maxDelvQty: 0                   # 최대 배달 수량
+dlvrPlcSeq: 1                   # 배달 장소 시퀀스
+dlvrRsvDvCd: 1                  # 배달 예약 구분 코드
+dsppUseYn: "Y"                  # 비상시 사용 여부
