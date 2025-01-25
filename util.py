@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime, timedelta
 
 import yaml
@@ -7,7 +8,7 @@ import yaml
 def load_yaml(filename):
 
     # load app.py path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    current_dir = os.path.dirname(sys.argv[0])  # 실행 파일 경로
     config_path = os.path.join(current_dir, filename)
 
     with open(config_path, 'r', encoding='utf-8') as file:
@@ -29,3 +30,7 @@ def 다음_근무일(날짜):
         다음날짜 += timedelta(days=1)
 
     return 다음날짜.strftime('%Y%m%d')
+
+
+def already_done(response):
+    return response.json()['errorMsg'] == '동일날짜에 이미 등록된 예약이 존재합니다.'
