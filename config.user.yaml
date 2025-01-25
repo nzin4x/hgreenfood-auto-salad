@@ -1,5 +1,18 @@
 # 사용자 정보 설정
-userId: "your-name"          # 사용자 ID
-userData: "your-pssword"  # 사용자 비밀번호
-menuSeq: "샌,샐"    # 샌(드위치) 샐(러드), 빵, 닭(가슴살) 4가지 신청하고 싶은 순서대로 1글자씩 , 로 엮어서 입력
+userId: "nz-your-id"          # 사용자 ID
+userData: "nz-your-password"  # 사용자 비밀번호
+menuSeq: "샐,샌"    # 샌(드위치) 샐(러드), 빵, 닭(가슴살) 4가지 신청하고 싶은 순서대로 1글자씩 , 로 엮어서 입력
 floorNm: "10층"           # 배달할 층 이름
+reserve:
+    at: # 예약 프로그램 시작 시, 분, 초
+      hour: 12
+      minute: 59
+      second: 50
+    duration: # 예약 프로그램이 몇초에 한번씩 몇초 동안 돌 것인가?
+      seconds: 60
+      sleep_seconds: 5
+data.go.kr: # 키는 알아서 발급 받으시오 회원 가입만 하면 된다.
+  api:
+    key: "your-api-key"
+    holiday: # 공휴일 데이터 API 주소
+      endpoint : "http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getHoliDeInfo"
