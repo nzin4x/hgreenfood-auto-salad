@@ -7,11 +7,14 @@
 
 ## config.user.yaml 파일 수정
 - id, pw, 희망 식단 이니셜 목록을 저장
-- data.go.kr 에서 API 를 발급 받아 기록
+- data.go.kr 의 개인 API 키 발급
+  - https://www.data.go.kr/iim/api/selectApiKeyList.do 에서 키 발급 및 확인
+  - 일주일에 한번만 사용하므로 운영키를 발급 받을 필요 없음.
+  - 임시공휴일 등 대응을 위한 매주 캐시 갱신 조회
 - 설정파일과 app.py 또는 pyinstaller 로 만든 실행파일으 같은 위치에 저장하고 실행
 - 
 
-# 실행 원리
+## 실행
 - 이 프로그램은 언제 실행하던 근무일 13시에 실행된다. 그 외시간에는 자동으로 sleep 이 걸림. (계속 틀어 놓으세요.)
 - 실행이 성공하면 다음 근무일까지 자동 sleep
 - 실행시 실패하면 정해진 duration 후에 다시 시도 (취소분 줍줍)
