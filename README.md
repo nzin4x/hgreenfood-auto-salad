@@ -5,19 +5,26 @@
 
 # 사용 방법
 
+## 설치
+- pip install pyinstaller
+- pyinstaller app.py
+
+## 설정 이동
+- cp config.*.yaml dist/
+
 ## config.user.yaml 파일 수정
 - id, pw, 희망 식단 이니셜 목록을 저장
-- data.go.kr 의 개인 API 키 발급
+  - 예를 들어 샐,샌 을 적으면 샐러드 샌드위치 순으로 신청함.
+- data.go.kr 의 개인 API 키 수정
   - https://www.data.go.kr/iim/api/selectApiKeyList.do 에서 키 발급 및 확인
   - 일주일에 한번만 사용하므로 운영키를 발급 받을 필요 없음.
   - 임시공휴일 등 대응을 위한 매주 캐시 갱신 조회
-- 설정파일과 app.py 또는 pyinstaller 로 만든 실행파일으 같은 위치에 저장하고 실행
-  - 실행 프로그램으로 만들었을 경우, app.exe 위치에 config.user.yaml 과 config.default.yaml 을 같은 경로로 옮겨둔다.
 
 ## 실행
+- dist 폴더의 app 실행
 - 이 프로그램은 언제 실행하던 근무일 13시에 실행된다. 그 외시간에는 자동으로 sleep 이 걸림. (계속 틀어 놓으세요.)
 - 실행이 성공하면 다음 근무일까지 자동 sleep
-- 실행시 실패하면 정해진 duration 후에 다시 시도 (취소분 줍줍)
+- 실행시 실패하면 정해진 duration 후에 다시 시도 
 
 # TODO
 - [x] 실행화일과 같은 위치에 있는 설정을 읽도록 상대경로 설정파일 코드 작성.
