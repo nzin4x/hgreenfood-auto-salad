@@ -6,13 +6,16 @@
 # 사용 방법
 
 ## 설치
+- git clone https://github.com/nzin4x/hgreenfood-auto-salad
+- python 설치 / venv 환경 준비
+- pip install -r requirements.txt
 - pip install pyinstaller
 - pyinstaller --onefile app.py
 
-## 설정 이동
+## 기본 설정 구성 복사
 - cp config.*.yaml dist/
 
-## config.user.yaml 파일 수정
+## dist/config.user.yaml 파일 수정
 - id, pw, 희망 식단 이니셜 목록을 저장
   - 예를 들어 샐,샌 을 적으면 샐러드 샌드위치 순으로 신청함.
 - data.go.kr 의 개인 API 키 수정
@@ -21,7 +24,7 @@
   - 임시공휴일 등 대응을 위한 매주 캐시 갱신 조회
 
 ## 실행
-- dist 폴더의 app 실행
+- ./dist/app.exe 또는 ./dist/app
 - 이 프로그램은 언제 실행하던 근무일 13시에 실행된다. 그 외시간에는 자동으로 sleep 이 걸림. (계속 틀어 놓으세요.)
 - 실행이 성공하면 다음 근무일까지 자동 sleep
 - 실행시 실패하면 정해진 duration 후에 다시 시도 
