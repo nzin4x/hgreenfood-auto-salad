@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+import traceback
 from datetime import datetime, timedelta
 
 import requests
@@ -176,6 +177,7 @@ def main():
 
     except Exception as e:
         logging.error(f"에러 발생: {e}")
+        logging.error(traceback.format_exc())  # 전체 Stack Trace 출력
 
 
 def sleep_until_next_workday_noon(prvdDt, merged_config):
