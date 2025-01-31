@@ -67,19 +67,30 @@ class Holiday:
             self.cache_holidays(target_year, target_month, holidays)
             print(f"{key} 휴일 데이터 갱신 완료.")
 
+    from datetime import datetime, timedelta
+
     def 다음_근무일(self, 날짜):
         현재날짜 = datetime.strptime(날짜, '%Y%m%d')
-        다음날짜 = 현재날짜 + timedelta(days=1)
+        지금 = datetime.now()  # 현재 날짜와 시간을 가져옵니다.
+
+        # 현재 시간이 13시 이전인지 확인합니다.
+        if 지금.hour < 13:
+            조건날짜 = 현재날짜  # 오늘 날짜를 기준으로 합니다.
+        else:
+            조건날짜 = 현재날짜 + timedelta(days=1)  # 내일 날짜를 기준으로 합니다.
 
         while True:
-            year, month = 다음날짜.year, 다음날짜.month
+            year, month = 조건날짜.year, 조건날짜.month
             holidays, _ = self.get_cached_holidays(year, month)
-            if 다음날짜.weekday() < 5 and 다음날짜.strftime('%Y%m%d') not in holidays:
-                break
-            다음날짜 += timedelta(days=1)
 
-        print(f"다음 근무일 {다음날짜}")
-        return 다음날짜.strftime('%Y%m%d')
+            # 평일(월요일~금요일이고, 휴일이 아닐 경우) 확인
+            if 조건날짜.weekday() < 5 and 조건날짜.strftime('%Y%m%d') not in holidays:
+                break
+
+            조건날짜 += timedelta(days=1)  # 다음 날로 이동
+
+        print(f"다음 근무일 {조건날짜}")
+        return 조건날짜.strftime('%Y%m%d')
 
 # API URL
 config = load_yaml('config.user.yaml')
