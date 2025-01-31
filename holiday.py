@@ -1,15 +1,14 @@
-import json
-import os
 from datetime import datetime, timedelta
 
 import requests
 from tinydb import TinyDB, Query
+
+from config import DB_FILE, HOLIDAY_TBL_NM
 from util import load_yaml
 
 # TinyDB 설정
-DB_FILE = "data.json"
 db = TinyDB(DB_FILE)
-HolidayTable = db.table('holiday')
+holiday_tbl = db.table(HOLIDAY_TBL_NM)
 
 class Holiday:
     def __init__(self, config):
@@ -35,11 +34,11 @@ class Holiday:
     def cache_holidays(self, year: int, month: int, holidays: list):
         key = f"{year}{month:02d}"
         now = datetime.now().strftime("%Y-%m-%d")
-        HolidayTable.upsert({"key": key, "holidays": holidays, "last_updated": now}, Query().key == key)
+        holiday_tbl.upsert({"key": key, "holidays": holidays, "last_updated": now}, Query().key == key)
 
     def get_cached_holidays(self, year: int, month: int):
         key = f"{year}{month:02d}"
-        result = HolidayTable.get(Query().key == key)
+        result = holiday_tbl.get(Query().key == key)
         if result:
             return result.get("holidays", []), result.get("last_updated", None)
         return [], None
@@ -66,8 +65,6 @@ class Holiday:
             holidays = self.fetch_holidays(target_year, target_month)
             self.cache_holidays(target_year, target_month, holidays)
             print(f"{key} 휴일 데이터 갱신 완료.")
-
-    from datetime import datetime, timedelta
 
     def 다음_근무일(self, 날짜):
         현재날짜 = datetime.strptime(날짜, '%Y%m%d')

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import requests
 from tinydb import TinyDB
 
+from config import DB_FILE, RESERVATION_HISTORY_TBL_NM
 from holiday import Holiday
 from util import load_yaml, merge_configs, already_done
 
@@ -102,9 +103,8 @@ def reserve(merged_config, prvdDt):
     menuSeq = merged_config['menuSeq']
     menuInitials = [corner.strip() for corner in menuSeq.split(",")]
 
-    DB_FILE = "data.json"
     db = TinyDB(DB_FILE)
-    ReservationHistory = db.table('ReservationHistory')
+    reserve_his_tbl = db.table(RESERVATION_HISTORY_TBL_NM)
 
     reserveOK = False
 
@@ -130,7 +130,7 @@ def reserve(merged_config, prvdDt):
                 print(f"{prvdDt} 에 {menuInitial} 예약 요청 실패: {response.status_code}, {response.text}")
 
     log_entry.update({"reserveOk": reserveOK})
-    ReservationHistory.insert(log_entry)
+    reserve_his_tbl.insert(log_entry)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -154,10 +154,9 @@ def main():
             if today in cached_holidays or datetime.today().weekday() >= 5:
                 sleep_until_next_workday_noon(prvdDt, merged_config)
             else:
-                DB_FILE = "data.json"
                 db = TinyDB(DB_FILE)
-                ReservationHistory = db.table('ReservationHistory')
-                if ReservationHistory.search((lambda x: x['date'] == prvdDt and x['reserveOk'] == True)):
+                reserve_his_tbl = db.table(RESERVATION_HISTORY_TBL_NM)
+                if reserve_his_tbl.search((lambda x: x['date'] == prvdDt and x['reserveOk'] == True)):
                     logging.info("이미 예약 완료된 날짜입니다.")
                 else:
                     start_time = datetime.now().replace(
