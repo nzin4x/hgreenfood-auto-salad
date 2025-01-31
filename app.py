@@ -172,7 +172,8 @@ def main():
                         reserve(merged_config, prvdDt)
                         time.sleep(merged_config["reserve"]["duration"]["sleep_seconds"])
 
-            time.sleep(5)
+            logging.info("예식 가능 시간이 될 때까지 휴식 합니다.")
+            sleep_until_next_workday_noon(prvdDt, merged_config)
 
     except Exception as e:
         logging.error(f"에러 발생: {e}")
