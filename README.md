@@ -7,7 +7,7 @@
 
 ## 설치
 - pip install pyinstaller
-- pyinstaller app.py
+- pyinstaller --onefile app.py
 
 ## 설정 이동
 - cp config.*.yaml dist/
