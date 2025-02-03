@@ -7,8 +7,9 @@ from config import DB_FILE, HOLIDAY_TBL_NM
 from util import load_yaml
 
 # TinyDB 설정
-db = TinyDB(DB_FILE)
+db = TinyDB(DB_FILE, ensure_ascii=False, encoding='utf-8')
 holiday_tbl = db.table(HOLIDAY_TBL_NM)
+
 
 class Holiday:
     def __init__(self, config):
@@ -89,6 +90,7 @@ class Holiday:
         print(f"다음 근무일 {조건날짜}")
         return 조건날짜.strftime('%Y%m%d')
 
+
 # API URL
 config = load_yaml('config.user.yaml')
 
@@ -101,5 +103,3 @@ if __name__ == '__main__':
     holidays = holiday.get_cached_holidays(year, month)[0]
 
     print(holidays)
-
-
