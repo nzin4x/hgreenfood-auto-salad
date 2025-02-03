@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import logging
 import time
@@ -11,6 +12,26 @@ from config import DB_FILE, RESERVATION_HISTORY_TBL_NM
 from holiday import Holiday
 from util import load_yaml, merge_configs, already_done
 
+# 로거 생성
+logger = logging.getLogger("my_logger")
+logger.setLevel(logging.DEBUG)  # 로그 레벨 설정 (DEBUG 이상 모두 기록)
+
+# 1️⃣ 파일 핸들러 설정 (로그를 파일에 저장)
+file_handler = logging.FileHandler("app.log", encoding="utf-8")
+file_handler.setLevel(logging.DEBUG)  # 파일에는 DEBUG 이상 저장
+
+# 2️⃣ 콘솔 핸들러 설정 (로그를 콘솔에 출력)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)  # 콘솔에는 INFO 이상 출력
+
+# 3️⃣ 로그 포맷 설정
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# 4️⃣ 핸들러를 로거에 추가
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 def save_cookies(cookies, filename):
     with open(filename, 'w') as cookie_file:
@@ -104,7 +125,7 @@ def reserve(merged_config, prvdDt):
     menuSeq = merged_config['menuSeq']
     menuInitials = [corner.strip() for corner in menuSeq.split(",")]
 
-    db = TinyDB(DB_FILE)
+    db = TinyDB(DB_FILE, ensure_ascii=False, encoding='utf-8')
     reserve_his_tbl = db.table(RESERVATION_HISTORY_TBL_NM)
 
     reserveOK = False
@@ -117,9 +138,11 @@ def reserve(merged_config, prvdDt):
 
             log_entry = {
                 "date": prvdDt,
+                "requested_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "menu": conerDvCd,
                 "status_code": response.status_code,
-                "response": json.dumps(response.json(), ensure_ascii=False)
+                "errorCode": response.json().get('errorCode'),
+                "errorMsg": response.json().get('errorMsg')
             }
 
             if response.status_code == 200 or already_done(response):
@@ -133,8 +156,7 @@ def reserve(merged_config, prvdDt):
     log_entry.update({"reserveOk": reserveOK})
     reserve_his_tbl.insert(log_entry)
 
-
-logging.basicConfig(level=logging.INFO)
+    return reserveOK
 
 
 def main():
@@ -155,10 +177,10 @@ def main():
             if today in cached_holidays or datetime.today().weekday() >= 5:
                 sleep_until_next_workday_noon(prvdDt, merged_config)
             else:
-                db = TinyDB(DB_FILE)
+                db = TinyDB(DB_FILE, ensure_ascii=False, encoding='utf-8')
                 reserve_his_tbl = db.table(RESERVATION_HISTORY_TBL_NM)
                 if reserve_his_tbl.search((lambda x: x['date'] == prvdDt and x['reserveOk'] == True)):
-                    logging.info("이미 예약 완료된 날짜입니다.")
+                    logger.info("이미 예약 완료된 날짜입니다.")
                 else:
                     start_time = datetime.now().replace(
                         hour=merged_config["reserve"]["at"]["hour"],
@@ -169,15 +191,20 @@ def main():
                     end_time = start_time + timedelta(seconds=merged_config["reserve"]["duration"]["seconds"])
 
                     while end_time > datetime.now() > start_time:
-                        reserve(merged_config, prvdDt)
+                        result = reserve(merged_config, prvdDt)
+
+                        if result:
+                            logger.info("예약 성공! 다음 근무일까지 sleep")
+                            break
+
                         time.sleep(merged_config["reserve"]["duration"]["sleep_seconds"])
 
-            logging.info("예식 가능 시간이 될 때까지 휴식 합니다.")
+            logger.info("예약 가능 시간이 될 때까지 휴식 합니다.")
             sleep_until_next_workday_noon(prvdDt, merged_config)
 
     except Exception as e:
-        logging.error(f"에러 발생: {e}")
-        logging.error(traceback.format_exc())  # 전체 Stack Trace 출력
+        logger.error(f"에러 발생: {e}")
+        logger.error(traceback.format_exc())  # 전체 Stack Trace 출력
 
 
 def sleep_until_next_workday_noon(prvdDt, merged_config):
@@ -196,7 +223,7 @@ def sleep_until_next_workday_noon(prvdDt, merged_config):
         logging.warning(f"목표 시간이 과거입니다. 즉시 실행됩니다.")
         return 0
 
-    logging.info(f"다음 근무일 예약시간 {target_time}까지 {sleep_duration}초 동안 대기합니다.")
+    logger.info(f"다음 근무일 예약시간 {target_time}까지 {sleep_duration}초 동안 대기합니다.")
     time.sleep(sleep_duration)
 
 
