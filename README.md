@@ -5,6 +5,10 @@
 
 # 사용 방법
 
+## 준비
+- data.go.kr 회원 로그인 및 API 키 확보
+- 샐러드 신청 앱 id/pw 확보
+
 ## 설치
 - git clone https://github.com/nzin4x/hgreenfood-auto-salad
 - python 설치 / venv 환경 준비
