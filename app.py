@@ -170,10 +170,11 @@ def main():
         holiday.update_holidays_cache(datetime.today().year, datetime.today().month)
 
         cached_holidays = holiday.get_cached_holidays(datetime.today().year, datetime.today().month)[0]
-        today = datetime.today().strftime('%Y%m%d')
-        prvdDt = holiday.다음_근무일(today)
 
         while True:
+            today = datetime.today().strftime('%Y%m%d')
+            prvdDt = holiday.다음_근무일(today)
+
             if today in cached_holidays or datetime.today().weekday() >= 5:
                 sleep_until_next_workday_noon(prvdDt, merged_config)
             else:
