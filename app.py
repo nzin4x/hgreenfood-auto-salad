@@ -220,12 +220,13 @@ def sleep_until_next_workday_noon(prvdDt, merged_config):
     current_time = datetime.now()
     sleep_duration = (target_time - current_time).total_seconds()
 
-    if sleep_duration <= 0:
-        logging.warning(f"목표 시간이 과거입니다. 즉시 실행됩니다.")
-        time.sleep(merged_config["reserve"]["duration"]["sleep_seconds"])
-    else:
-        logger.info(f"다음 근무일 예약시간 {target_time}까지 {sleep_duration}초 동안 대기합니다.")
+    logger.debug(f"DEBUG: current_time={current_time}, target_time={target_time}, sleep_duration={sleep_duration}")
 
+    if sleep_duration <= 0:
+        logger.warning(f"목표 시간이 과거입니다. 최소 1초 대기 후 실행됩니다.")
+        sleep_duration = 1  # 최소 1초라도 대기
+
+    logger.info(f"다음 근무일 예약시간 {target_time}까지 {sleep_duration}초 동안 대기합니다.")
     time.sleep(sleep_duration)
 
 if __name__ == '__main__':
