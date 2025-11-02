@@ -1,9 +1,9 @@
-# 기본 설정
+# 기본 설정 (변경하지 마세요)
 osDvCd: ""                      # 운영 체제 구분 코드
 userCurrAppVer: "1.2.3"        # 현재 애플리케이션 버전
 mobiPhTrmlId: ""                # 모바일 단말기 ID
 bizplcCd: "196274"              # 사업장 코드
-mealDvCd: "0002"                # 식사 구역 종류 코드
+mealDvCd: "0002"                # 식사 구역 종류 코드 (중식)
 rownum: 9                       # 행 번호
 dlvrPlcFloorNo: "9"            # 배달 장소 층 번호
 alphabetSeq: "I"                # 알파벳 시퀀스
@@ -16,3 +16,7 @@ maxDelvQty: 0                   # 최대 배달 수량
 dlvrPlcSeq: 1                   # 배달 장소 시퀀스
 dlvrRsvDvCd: 1                  # 배달 예약 구분 코드
 dsppUseYn: "Y"                  # 비상시 사용 여부
+
+# 예약 시도 설정
+max_retry: 10                   # 최대 재시도 횟수
+retry_interval: 5               # 재시도 간격 (초)

@@ -1,1 +1,25 @@
+# 사용자 개인정보 및 설정 파일
 config.user.yaml
+config.user.yaml.enc
+
+# 런타임 파일
+cookies.txt
+*.log
+data.json
+*.pyc
+__pycache__/
+
+# 가상환경
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
