@@ -1,4 +1,5 @@
 # 사용자 개인정보 및 설정 파일
+config.user.*
 config.user.yaml
 config.user.yaml.enc
 

@@ -269,6 +269,14 @@ def run_setup():
     print("         프로그램 실행 시마다 필요하므로 잊어버리지 마세요!")
     print("         (분실 시 설정을 처음부터 다시 해야 합니다)\n")
     
+    # Windows에서는 IME를 영문으로 전환 시도 (최선 시도)
+    try:
+        from util import set_ime_english
+        set_ime_english()
+        print("   (입력 전 한/영키를 영문으로 전환 시도했습니다)")
+    except Exception:
+        pass
+    
     while True:
         master_password = getpass.getpass("마스터 패스워드 입력: ").strip()
         if len(master_password) < 8:
@@ -335,15 +343,21 @@ def run_setup():
 def run_app():
     """메인 프로그램 실행"""
     print("\n🚀 자동 예약 프로그램을 시작합니다...\n")
+    # 패키징된 환경(PyInstaller)에서도 동작하도록 직접 import 실행
     # 환경 변수로 CONFIG_FILE 전달
-    env = os.environ.copy()
-    env['HGREENFOOD_CONFIG'] = CONFIG_FILE
-    subprocess.run([sys.executable, "app.py"], env=env)
+    os.environ['HGREENFOOD_CONFIG'] = CONFIG_FILE
+    try:
+        from app import main as app_main
+        app_main()
+    except Exception as e:
+        print(f"❌ 자동 예약 실행 중 오류: {e}")
+        print("   (개발환경에서는 'python app.py'로 직접 실행해보세요)")
 
 
 def change_master_password():
     """마스터 패스워드 변경"""
     print("\n🔐 마스터 패스워드 변경\n")
+    # TODO: 패키징 환경 지원을 위해 추후 내부 import 실행으로 전환 고려
     env = os.environ.copy()
     env['HGREENFOOD_CONFIG'] = CONFIG_FILE
     subprocess.run([sys.executable, "change_password.py"], env=env)
@@ -372,6 +386,7 @@ def recreate_config():
 def change_menu_order():
     """선호 식단 순서 변경"""
     print("\n🍴 선호 식단 순서 변경\n")
+    # TODO: 패키징 환경 지원을 위해 추후 내부 import 실행으로 전환 고려
     env = os.environ.copy()
     env['HGREENFOOD_CONFIG'] = CONFIG_FILE
     subprocess.run([sys.executable, "change_menu.py"], env=env)
@@ -380,6 +395,7 @@ def change_menu_order():
 def manage_vacation():
     """예약 금지 날짜 관리"""
     print("\n🏖️ 예약 금지 날짜 관리 (휴가 등)\n")
+    # TODO: 패키징 환경 지원을 위해 추후 내부 import 실행으로 전환 고려
     env = os.environ.copy()
     env['HGREENFOOD_CONFIG'] = CONFIG_FILE
     subprocess.run([sys.executable, "manage_vacation.py"], env=env)

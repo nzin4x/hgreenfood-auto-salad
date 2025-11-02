@@ -65,6 +65,9 @@ class Holiday:
 
     def update_holidays_cache(self, year: int, month: int):
         ''' 2달치의 정보를 수신한다. '''
+        updates_needed = []
+        cache_status = []
+        
         for offset in range(2):  # 현재 월과 다음 월 처리
             target_year = year
             target_month = month + offset
@@ -78,18 +81,26 @@ class Holiday:
             if last_updated:
                 last_updated_date = datetime.strptime(last_updated, "%Y-%m-%d")
                 if last_updated_date >= datetime.now() - timedelta(weeks=1):
-                    print(f"{key} 휴일 데이터가 최근 업데이트됨: {last_updated}, 갱신 불필요")
+                    cache_status.append(f"{key}(캐시)")
                     continue
 
-            print(f"{key} 휴일 데이터 갱신 중...")
+            updates_needed.append((target_year, target_month, key))
+        
+        # 요약 메시지 출력
+        if cache_status and not updates_needed:
+            print(f"📅 휴일 캐시: {', '.join(cache_status)} - 갱신 불필요")
+        
+        # 갱신이 필요한 월만 처리
+        for target_year, target_month, key in updates_needed:
+            print(f"📅 {key} 휴일 데이터 갱신 중...")
             try:
                 holidays = self.fetch_holidays(target_year, target_month)
                 if holidays or holidays == []:  # 빈 리스트도 유효 (공휴일 없는 달)
                     self.cache_holidays(target_year, target_month, holidays)
                     if holidays:
-                        print(f"{key} 휴일 데이터 갱신 완료: {len(holidays)}건")
+                        print(f"✅ {key} 휴일 {len(holidays)}건 갱신 완료")
                     else:
-                        print(f"{key} 공휴일 없음 (조회 실패 또는 해당 월 공휴일 없음)")
+                        print(f"✅ {key} 공휴일 없음")
             except Exception as e:
                 print(f"⚠️ {key} 휴일 데이터 갱신 실패: {e}")
                 print(f"   기존 캐시 데이터를 계속 사용합니다.")

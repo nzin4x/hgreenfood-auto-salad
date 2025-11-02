@@ -49,7 +49,6 @@ def clean_build():
     print("\n🧹 이전 빌드 파일 정리 중...")
     
     folders_to_clean = ['build', 'dist', '__pycache__']
-    files_to_clean = ['*.spec']
     
     for folder in folders_to_clean:
         if os.path.exists(folder):
@@ -80,7 +79,7 @@ main_a = Analysis(
     datas=[
         ('config.default.yaml', '.'),
     ],
-    hiddenimports=['cryptography', 'tinydb', 'yaml', 'requests'],
+    hiddenimports=['cryptography', 'tinydb', 'yaml', 'requests', 'app'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -114,47 +113,6 @@ main_exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=None,
-)
-
-# 테스트 유틸리티
-test_a = Analysis(
-    ['test_simple.py'],
-    pathex=[],
-    binaries=[],
-    datas=[],
-    hiddenimports=['cryptography', 'tinydb', 'yaml', 'requests'],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
-    noarchive=False,
-)
-
-test_pyz = PYZ(test_a.pure, test_a.zipped_data, cipher=block_cipher)
-
-test_exe = EXE(
-    test_pyz,
-    test_a.scripts,
-    test_a.binaries,
-    test_a.zipfiles,
-    test_a.datas,
-    [],
-    name='test_simple',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=True,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
 )
 '''
     
@@ -233,7 +191,6 @@ def create_readme():
 ## 📁 포함된 파일
 
 - `HGreenfoodAutoReservation.exe` - 메인 프로그램 (초기 설정 포함)
-- `test_simple.exe` - 테스트 도구
 - `config.default.yaml` - 기본 설정 파일
 - `README.md` - 전체 문서
 - `USER_GUIDE.md` - 상세 사용자 가이드
@@ -271,15 +228,6 @@ def create_readme():
 ## 📊 로그 확인
 
 프로그램 실행 후 `app.log` 파일에서 실행 로그를 확인할 수 있습니다.
-
-## 🧪 테스트
-
-예약/취소를 테스트하려면:
-
-```
-test_simple.exe reserve  # 예약 테스트
-test_simple.exe cancel   # 취소 테스트
-```
 
 ## 📞 문제 해결
 

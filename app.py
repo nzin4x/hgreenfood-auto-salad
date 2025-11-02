@@ -296,17 +296,31 @@ def load_config_with_password():
     # 암호화된 설정인 경우
     if user_config.get('_encrypted'):
         print("\n🔐 암호화된 설정 파일입니다.")
-        master_password = getpass.getpass("마스터 패스워드를 입력하세요: ")
         
-        from setup_config import load_and_decrypt_config
-        decrypted_config = load_and_decrypt_config(master_password)
-        
-        if not decrypted_config:
-            logger.error("마스터 패스워드가 올바르지 않습니다.")
-            sys.exit(1)
-        
-        print("✅ 설정 파일 로드 완료\n")
-        return decrypted_config
+        # Windows에서는 IME를 영문으로 전환 시도 (최선 시도)
+        try:
+            from util import set_ime_english
+            set_ime_english()
+            print("   (입력 전 한/영키를 영문으로 전환 시도했습니다)")
+        except Exception:
+            pass
+
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            master_password = getpass.getpass(f"마스터 패스워드를 입력하세요 ({attempt}/{max_attempts}): ")
+            
+            from setup_config import load_and_decrypt_config
+            decrypted_config = load_and_decrypt_config(master_password)
+            
+            if decrypted_config:
+                print("✅ 설정 파일 로드 완료\n")
+                return decrypted_config
+            else:
+                if attempt < max_attempts:
+                    print(f"❌ 마스터 패스워드가 올바르지 않습니다. (남은 시도: {max_attempts - attempt}회)")
+                else:
+                    logger.error("❌ 마스터 패스워드 입력 실패 횟수 초과. 프로그램을 종료합니다.")
+                    sys.exit(1)
     
     # 구 버전 (암호화되지 않은 설정)
     return user_config
