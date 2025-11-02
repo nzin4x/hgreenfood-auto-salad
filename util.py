@@ -3,10 +3,14 @@ import sys
 from datetime import datetime, timedelta
 
 import yaml
+from config import CONFIG_FILE
 
 
 def load_yaml(filename):
-
+    # 환경 설정 파일인 경우 CONFIG_FILE 사용
+    if filename == 'config.user.yaml':
+        filename = CONFIG_FILE
+    
     # load app.py path
     current_dir = os.path.dirname(sys.argv[0])  # 실행 파일 경로
     config_path = os.path.join(current_dir, filename)

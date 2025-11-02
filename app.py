@@ -155,10 +155,44 @@ def 예약조회요청(prvdDt, bizplcCd="196274"):
     if result.get('errorCode') == 0:
         datasets = result.get('dataSets', {})
         reservations = datasets.get('reserveList', [])
-        logger.info(f"현재 예약: {len(reservations)}건")
+        logger.debug(f"예약 조회 결과: {len(reservations)}건")
         return reservations
     
     return []
+
+
+def show_current_reservations(prvdDt):
+    """현재 예약 현황 출력 (단일 날짜)"""
+    logger.info("\n" + "="*60)
+    logger.info("📋 다음 예약 대상일 확인")
+    logger.info("="*60)
+    
+    reservations = 예약조회요청(prvdDt)
+    if reservations:
+        # 중복 제거 및 표시
+        shown_menus = set()
+        for res in reservations:
+            menu_name = res.get('conerNm', '알 수 없음')
+            date = res.get('prvdDt', '')
+            menu_key = f"{date}:{menu_name}"
+            
+            if menu_key not in shown_menus:
+                shown_menus.add(menu_key)
+                # 날짜 포맷팅 (YYYYMMDD -> YYYY-MM-DD)
+                if len(date) == 8:
+                    formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:]}"
+                else:
+                    formatted_date = date
+                logger.info(f"✅ {formatted_date}: {menu_name} - 이미 예약 완료")
+    else:
+        # 날짜 포맷팅
+        if len(prvdDt) == 8:
+            formatted_date = f"{prvdDt[:4]}-{prvdDt[4:6]}-{prvdDt[6:]}"
+        else:
+            formatted_date = prvdDt
+        logger.info(f"📌 {formatted_date}: 아직 예약 안 됨 → 예약 대기 중")
+    
+    logger.info("="*60 + "\n")
 
 
 def 예약취소요청(reservation_data):
@@ -291,11 +325,17 @@ def main():
 
         holiday = Holiday(merged_config)
         holiday.update_holidays_cache(datetime.today().year, datetime.today().month)
-
+        
         # 초기 로그인 1회만 수행
         if not 로그인(merged_config):
             logger.error("초기 로그인 실패. 프로그램 종료")
             return
+        
+        # 현재 예약 현황 조회 (다음 근무일만)
+        now = datetime.now()
+        today = now.strftime('%Y%m%d')
+        next_workday = holiday.다음_근무일(today)
+        show_current_reservations(next_workday)
 
         while True:
             now = datetime.now()
@@ -429,7 +469,17 @@ def sleep_until_next_workday_noon(prvdDt, merged_config):
         logger.warning(f"목표 시간이 과거입니다. 10초 후 재시작")
         sleep_duration = 10
 
-    logger.info(f"⏰ 다음 예약시간 {target_time}까지 {int(sleep_duration)}초({sleep_duration/3600:.1f}시간) 대기")
+    # 날짜 포맷팅
+    formatted_date = f"{prvdDt[:4]}-{prvdDt[4:6]}-{prvdDt[6:]}"
+    
+    # 예약 상태 확인
+    reservations = 예약조회요청(prvdDt)
+    if reservations:
+        logger.info(f"✅ {formatted_date} 예약 완료 → 다음 근무일 예약을 위해 대기")
+    else:
+        logger.info(f"📌 {formatted_date} 예약 예정 → 예약 시간까지 대기")
+    
+    logger.info(f"⏰ 다음 예약 시간: {target_time.strftime('%Y-%m-%d %H:%M:%S')} ({sleep_duration/3600:.1f}시간 후)")
     time.sleep(sleep_duration)
 
 if __name__ == '__main__':

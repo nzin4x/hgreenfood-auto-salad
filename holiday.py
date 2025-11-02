@@ -16,21 +16,40 @@ class Holiday:
         self.config = config
 
     def fetch_holidays(self, year: int, month: int):
+        # data.go.kr 샘플 코드와 동일하게 params 사용
         params = {
             'serviceKey': self.config['data.go.kr']['api']['key'],
-            'pageNo': '1',
-            'numOfRows': '10',
             'solYear': str(year),
             'solMonth': str(month).zfill(2)
         }
 
-        response = requests.get(self.config['data.go.kr']['api']['holiday']['endpoint'], params=params)
-        import xml.etree.ElementTree as ET
-        xml_data = response.content
-        root = ET.fromstring(xml_data)
+        try:
+            response = requests.get(self.config['data.go.kr']['api']['holiday']['endpoint'], params=params, timeout=10)
+            
+            if response.status_code != 200:
+                print(f"⚠️ 휴일 API 호출 실패 (상태 코드: {response.status_code})")
+                print(f"   캐시된 데이터를 사용하거나 휴일 체크를 건너뜁니다.")
+                return []
+            
+            import xml.etree.ElementTree as ET
+            xml_data = response.content
+            root = ET.fromstring(xml_data)
+            
+            # 에러 코드 확인
+            result_code = root.find('.//resultCode')
+            if result_code is not None and result_code.text != '00':
+                result_msg = root.find('.//resultMsg')
+                msg = result_msg.text if result_msg is not None else 'Unknown'
+                print(f"⚠️ 휴일 API 오류 (코드: {result_code.text}, 메시지: {msg})")
+                print(f"   캐시된 데이터를 사용하거나 휴일 체크를 건너뜁니다.")
+                return []
 
-        locdates = [item.find('locdate').text for item in root.findall('.//item')]
-        return locdates
+            locdates = [item.find('locdate').text for item in root.findall('.//item')]
+            return locdates
+        except Exception as e:
+            print(f"⚠️ 휴일 데이터 조회 중 오류 발생: {e}")
+            print(f"   캐시된 데이터를 사용하거나 휴일 체크를 건너뜁니다.")
+            return []
 
     def cache_holidays(self, year: int, month: int, holidays: list):
         key = f"{year}{month:02d}"
@@ -63,9 +82,17 @@ class Holiday:
                     continue
 
             print(f"{key} 휴일 데이터 갱신 중...")
-            holidays = self.fetch_holidays(target_year, target_month)
-            self.cache_holidays(target_year, target_month, holidays)
-            print(f"{key} 휴일 데이터 갱신 완료.")
+            try:
+                holidays = self.fetch_holidays(target_year, target_month)
+                if holidays or holidays == []:  # 빈 리스트도 유효 (공휴일 없는 달)
+                    self.cache_holidays(target_year, target_month, holidays)
+                    if holidays:
+                        print(f"{key} 휴일 데이터 갱신 완료: {len(holidays)}건")
+                    else:
+                        print(f"{key} 공휴일 없음 (조회 실패 또는 해당 월 공휴일 없음)")
+            except Exception as e:
+                print(f"⚠️ {key} 휴일 데이터 갱신 실패: {e}")
+                print(f"   기존 캐시 데이터를 계속 사용합니다.")
 
     def 다음_근무일(self, 날짜):
         현재날짜 = datetime.strptime(날짜, '%Y%m%d')

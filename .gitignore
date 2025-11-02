@@ -20,6 +20,10 @@ env/
 *.swp
 *.swo
 
+# binary
+build
+dist
+
 # OS
 .DS_Store
 Thumbs.db

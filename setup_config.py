@@ -11,7 +11,7 @@ import getpass
 import yaml
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import base64
 import json
 import requests
@@ -24,7 +24,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 def derive_key_from_password(password: str, salt: bytes) -> bytes:
     """패스워드로부터 암호화 키 생성"""
-    kdf = PBKDF2(
+    kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
@@ -82,12 +82,11 @@ def validate_holiday_api(api_key: str) -> bool:
     """휴일 API 키 검증"""
     print("\n🗓️ 휴일 API 키 검증 중...")
     
-    url = "http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getHoliDeInfo"
+    url = "http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo"
     
+    # data.go.kr 샘플 코드와 동일하게 params 사용
     params = {
         'serviceKey': api_key,
-        'pageNo': '1',
-        'numOfRows': '10',
         'solYear': str(datetime.now().year),
         'solMonth': str(datetime.now().month).zfill(2)
     }
@@ -105,13 +104,22 @@ def validate_holiday_api(api_key: str) -> bool:
                     print("   ✅ 휴일 API 키 유효!")
                     return True
                 else:
+                    result_msg = root.find('.//resultMsg')
+                    msg = result_msg.text if result_msg is not None else 'Unknown'
                     print(f"   ❌ API 응답 오류: {result_code.text if result_code is not None else 'Unknown'}")
+                    print(f"      메시지: {msg}")
                     return False
             except ET.ParseError:
                 print("   ❌ API 응답 파싱 실패")
+                print(f"      응답: {response.text[:200]}")
                 return False
         else:
             print(f"   ❌ API 호출 실패: {response.status_code}")
+            if response.status_code == 403:
+                print("      💡 data.go.kr 사이트에서 '특일정보조회서비스' 활용신청이 승인되었는지 확인하세요")
+            elif response.status_code == 401:
+                print("      💡 API 키가 올바른지 확인하거나 data.go.kr에서 활용신청 승인 상태를 확인하세요")
+            print("      ℹ️ 검증 실패해도 프로그램은 동작합니다 (공휴일 체크만 제한적)")
             return False
     except Exception as e:
         print(f"   ❌ API 검증 오류: {e}")
@@ -149,17 +157,29 @@ def create_config():
     # 3. data.go.kr API 키
     print("\n3️⃣ data.go.kr 휴일 데이터 조회 API 키")
     print("   (https://www.data.go.kr 에서 발급)")
+    print("   💡 팁: 'Encoding' 또는 'Decoding' 버전 모두 사용 가능")
     while True:
         api_key = input("   API Key: ").strip()
         if api_key:
             break
         print("   ⚠️ API 키를 입력해주세요.")
     
-    # API 키 검증
-    if not validate_holiday_api(api_key):
-        print("\n⚠️ API 키 검증 실패. 그래도 계속하시겠습니까? (y/N): ", end='')
-        if input().lower() != 'y':
-            return False
+    # API 키 검증 (선택 사항)
+    print("\n   API 키를 검증하시겠습니까? (y/N): ", end='')
+    if input().lower() == 'y':
+        if not validate_holiday_api(api_key):
+            print("\n⚠️ API 키 검증 실패.")
+            print("   📌 확인 사항:")
+            print("      1. data.go.kr → 나의 API → 개인 API인증키에서 키 값 확인")
+            print("      2. data.go.kr → 활용신청 → '특일정보' 서비스 승인 상태 확인")
+            print("      3. 신청 직후에는 승인까지 1-2일 소요될 수 있음")
+            print("\n   ℹ️ 공휴일 API 없이도 프로그램은 정상 작동합니다!")
+            print("      (단, 공휴일에도 예약 시도를 하게 되며 최대 10회 재시도 후 포기)")
+            print("\n   그래도 계속하시겠습니까? (Y/n): ", end='')
+            if input().lower() == 'n':
+                return False
+    else:
+        print("   ⏭️ API 키 검증을 건너뜁니다.")
     
     # 4. 선호 메뉴 순서
     print("\n4️⃣ 선호 메뉴 순서를 입력하세요")
@@ -227,7 +247,7 @@ def create_config():
             'api': {
                 'key_encrypted': encrypted_api_key,
                 'holiday': {
-                    'endpoint': 'http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getHoliDeInfo'
+                    'endpoint': 'http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo'
                 }
             }
         },
