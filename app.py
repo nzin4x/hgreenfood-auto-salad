@@ -461,6 +461,11 @@ def load_config_with_password():
 
 def console_menu_thread():
     """대기 중 사용자 입력을 받는 콘솔 메뉴 스레드"""
+    import time
+    
+    # 메인 스레드의 로그가 완료될 때까지 잠시 대기
+    time.sleep(0.5)
+    
     # 최초 1회 메뉴 표시
     print("\n" + "="*60)
     print("📋 대기 중 메뉴 (언제든 명령 입력 가능)")
@@ -472,10 +477,11 @@ def console_menu_thread():
     print("5. 예약 취소")
     print("0/q. 종료")
     print("="*60)
+    print()  # 빈 줄 추가
     
     while True:
         try:
-            choice = input("\n선택: ").strip()
+            choice = input("선택: ").strip()
             
             if choice == "0" or choice.lower() == "q":
                 logger.info("사용자가 종료를 요청했습니다.")
