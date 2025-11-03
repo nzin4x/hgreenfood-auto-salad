@@ -309,16 +309,28 @@ def 예약취소요청(reservation_data):
 
     # 예약 데이터를 그대로 사용
     payload = reservation_data
+    
+    prvd_dt = reservation_data.get('prvdDt', '')
+    coner_nm = reservation_data.get('conerNm', '')
+    
+    logger.info(f"🌐 API 호출: updateMenuReservationCancel.do")
+    logger.info(f"   요청 파라미터: prvdDt={prvd_dt}, conerNm={coner_nm}")
 
     response = session.post(url, headers=headers, data=json.dumps(payload), verify=False, timeout=10)
 
-    logger.info(f"취소 응답 코드: {response.status_code}")
+    logger.info(f"   응답 상태: {response.status_code}")
+    
     try:
-        logger.debug(f"취소 응답 내용: {response.json()}")
-    except:
-        logger.debug(f"취소 응답 본문 (JSON 파싱 실패): {response.text[:500]}")
-
-    return response
+        resp_json = response.json()
+        error_code = resp_json.get('errorCode')
+        error_msg = resp_json.get('errorMsg')
+        logger.info(f"   응답 내용: errorCode={error_code}, errorMsg={error_msg}")
+        
+        # errorCode가 0이면 성공
+        return response.status_code == 200 and error_code == 0
+    except Exception as e:
+        logger.warning(f"   응답 본문 (JSON 파싱 실패): {response.text[:500]}")
+        return False
 
 
 menu_corner_map = {
@@ -380,6 +392,9 @@ def reserve(merged_config, prvdDt, login_once=True):
                 reason = f"{menuInitial} 예약 성공"
                 log_entry.update({"reserveOk": True})
                 reserve_his_tbl.insert(log_entry)
+                
+                # 예약 성공 후 현재 예약 목록 출력
+                show_current_reservations(prvdDt)
                 break
             elif error_msg == '동일날짜에 이미 등록된 예약이 존재합니다.':
                 logger.info(f"ℹ️ {prvdDt} 에 이미 다른 메뉴가 예약되어 있음")
@@ -387,6 +402,9 @@ def reserve(merged_config, prvdDt, login_once=True):
                 reason = "이미 예약됨"
                 log_entry.update({"reserveOk": True})
                 reserve_his_tbl.insert(log_entry)
+                
+                # 이미 예약된 경우에도 현재 예약 목록 출력
+                show_current_reservations(prvdDt)
                 break
             else:
                 # 해당 메뉴 실패 - 다음 메뉴 시도
@@ -451,14 +469,15 @@ def console_menu_thread():
     print("2. 휴가 날짜 목록 보기")
     print("3. 휴가 날짜 삭제")
     print("4. 현재 예약 조회")
-    print("0. 종료")
+    print("5. 예약 취소")
+    print("0/q. 종료")
     print("="*60)
     
     while True:
         try:
             choice = input("\n선택: ").strip()
             
-            if choice == "0":
+            if choice == "0" or choice.lower() == "q":
                 logger.info("사용자가 종료를 요청했습니다.")
                 os._exit(0)
             elif choice == "1":
@@ -469,6 +488,8 @@ def console_menu_thread():
                 delete_vacation_date()
             elif choice == "4":
                 show_reservations_interactive()
+            elif choice == "5":
+                cancel_reservation_interactive()
             elif choice == "":
                 # Enter만 누르면 메뉴 다시 표시
                 print("\n" + "="*60)
@@ -478,15 +499,23 @@ def console_menu_thread():
                 print("2. 휴가 날짜 목록 보기")
                 print("3. 휴가 날짜 삭제")
                 print("4. 현재 예약 조회")
-                print("0. 종료")
+                print("5. 예약 취소")
+                print("0/q. 종료")
                 print("="*60)
             else:
-                print("❌ 잘못된 선택입니다. (1-4, 0 중 선택)")
+                print("❌ 잘못된 선택입니다. (1-5, 0/q 중 선택)")
         except KeyboardInterrupt:
-            logger.info("\n사용자가 프로그램을 중단했습니다.")
+            print("\n")
+            logger.info("사용자가 프로그램을 중단했습니다. (Ctrl+C)")
+            os._exit(0)
+        except EOFError:
+            print("\n")
+            logger.info("사용자가 프로그램을 중단했습니다. (EOF)")
             os._exit(0)
         except Exception as e:
             logger.error(f"콘솔 메뉴 오류: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
 
 def add_vacation_date():
     """휴가 날짜 추가"""
@@ -652,6 +681,93 @@ def show_reservations_interactive():
     else:
         print(f"\n📋 {formatted}: 예약 없음")
 
+def cancel_reservation_interactive():
+    """예약 취소 (대화형) - 현재 예약 목록에서만 선택"""
+    
+    # 오늘부터 일주일치 예약 조회 (여러 날짜 예약이 함께 반환됨)
+    from datetime import timedelta
+    today = datetime.now().strftime('%Y%m%d')
+    reservations = 예약조회요청(today)
+    
+    if not reservations:
+        print("\n📋 취소 가능한 예약이 없습니다.")
+        return
+    
+    # 예약된 항목 중 rsvStatCd가 'A'인 것만 필터링하고 날짜별로 그룹화
+    from collections import defaultdict
+    by_date = defaultdict(list)
+    
+    for res in reservations:
+        if res.get('rsvStatCd') == 'A':
+            prvd_dt = res.get('prvdDt', '')
+            if prvd_dt:
+                by_date[prvd_dt].append(res)
+    
+    if not by_date:
+        print("\n📋 취소 가능한 예약이 없습니다.")
+        return
+    
+    # 예약 목록을 번호와 함께 표시
+    print("\n" + "="*60)
+    print("📋 취소 가능한 예약 목록")
+    print("="*60)
+    
+    all_reservations = []
+    idx = 1
+    
+    for date in sorted(by_date.keys()):
+        # 날짜 포맷팅
+        formatted_date = f"{date[:4]}-{date[4:6]}-{date[6:]}"
+        print(f"\n📅 {formatted_date}:")
+        
+        for res in by_date[date]:
+            coner_nm = res.get('conerNm', '알 수 없음')
+            disp_nm = res.get('dispNm', '')
+            if disp_nm:
+                print(f"   {idx}. {coner_nm} - {disp_nm}")
+            else:
+                print(f"   {idx}. {coner_nm}")
+            
+            all_reservations.append(res)
+            idx += 1
+    
+    print("="*60)
+    
+    # 취소할 예약 선택
+    choice = input(f"\n취소할 예약 번호 (1-{len(all_reservations)}, Enter=이전 단계로): ").strip()
+    
+    if not choice:
+        print("이전 단계로 돌아갑니다.")
+        return
+    
+    try:
+        idx = int(choice) - 1
+        if idx < 0 or idx >= len(all_reservations):
+            print("❌ 잘못된 번호입니다.")
+            return
+        
+        selected = all_reservations[idx]
+        
+        # 예약 취소 요청
+        result = 예약취소요청(selected)
+        
+        if result:
+            prvd_dt = selected.get('prvdDt', '')
+            coner_nm = selected.get('conerNm', '알 수 없음')
+            formatted_date = f"{prvd_dt[:4]}-{prvd_dt[4:6]}-{prvd_dt[6:]}" if len(prvd_dt) == 8 else prvd_dt
+            print(f"\n✅ {formatted_date} {coner_nm} 예약이 취소되었습니다.")
+            
+            # 취소 후 현재 예약 목록 출력
+            show_current_reservations(today)
+        else:
+            print(f"\n❌ 예약 취소에 실패했습니다.")
+            
+    except ValueError:
+        print("❌ 숫자를 입력해주세요.")
+    except Exception as e:
+        print(f"❌ 예약 취소 중 오류: {e}")
+        logger.error(f"예약 취소 오류: {e}")
+
 
 def main():
     try:
@@ -676,11 +792,6 @@ def main():
         if not 로그인(merged_config, force=True):
             logger.error("초기 로그인 실패. 프로그램 종료")
             return
-        
-        # 현재 예약 현황 조회 (오늘 기준으로 조회하면 여러 날짜 예약이 함께 반환됨)
-        now = datetime.now()
-        today = now.strftime('%Y%m%d')
-        show_current_reservations(today)
         
         # 콘솔 메뉴 스레드 시작 (데몬 스레드로 백그라운드 실행)
         console_thread = threading.Thread(target=console_menu_thread, daemon=True)
@@ -790,8 +901,9 @@ def main():
                 sleep_until_next_workday_noon(prvdDt, merged_config)
             
             else:
-                # 예약 시간이 1분 이상 지남 - 다음 근무일로
-                logger.warning(f"예약 시간({reservation_time}) 지남. 다음 근무일로 이동")
+                # 예약 시간이 1분 이상 지남 - 다음 예약 시간까지 대기
+                logger.info(f"⏱️ {prvdDt[:4]}-{prvdDt[4:6]}-{prvdDt[6:]} 예약 시간({reservation_time}) 지남")
+                logger.info(f"   다음 예약 대기로 전환")
                 sleep_until_next_workday_noon(prvdDt, merged_config)
 
     except Exception as e:
@@ -835,11 +947,11 @@ def sleep_until_next_workday_noon(prvdDt, merged_config):
             menus = [r.get('conerNm', '알 수 없음') for r in confirmed]
             menu_str = ', '.join(menus)
             logger.info(f"✅ {formatted_date} 예약 완료: {menu_str}")
-            logger.info(f"   → 다음 근무일 예약 대기")
+            logger.info(f"   다음 예약 시간에 다음 근무일 예약 시도 예정")
         else:
-            logger.info(f"📌 {formatted_date} 예약 예정 → 예약 시간 대기")
+            logger.info(f"📌 {formatted_date} 예약 대기 중")
     else:
-        logger.info(f"📌 {formatted_date} 예약 예정 → 예약 시간 대기")
+        logger.info(f"📌 {formatted_date} 예약 대기 중")
     
     logger.info(f"⏰ 다음 예약 시간: {target_time.strftime('%Y-%m-%d %H:%M:%S')} ({sleep_duration/3600:.1f}시간 후)")
     
