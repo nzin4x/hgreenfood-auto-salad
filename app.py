@@ -386,6 +386,26 @@ def reserve(merged_config, prvdDt, login_once=True):
                 "errorMsg": error_msg
             }
 
+            # 401/403 인증 오류 처리
+            if response.status_code in [401, 403]:
+                logger.warning(f"⚠️ 인증 오류 ({response.status_code}) - 재로그인 시도")
+                if 로그인(merged_config, force=True):
+                    logger.info("재로그인 성공 - 예약 재시도")
+                    # 재로그인 후 같은 메뉴로 재시도
+                    response = 예약주문요청(merged_config, conerDvCd, prvdDt)
+                    try:
+                        result_json = response.json()
+                        error_code = result_json.get('errorCode')
+                        error_msg = result_json.get('errorMsg', '알 수 없는 오류')
+                    except Exception as e:
+                        logger.error(f"❌ 예약 응답 JSON 파싱 실패: {e}")
+                        error_code = -1
+                        error_msg = f"JSON 파싱 실패: {str(e)}"
+                else:
+                    logger.error("재로그인 실패")
+                    reason = "재로그인 실패"
+                    return False, reason
+            
             if response.status_code == 200 and error_code == 0:
                 logger.info(f"✅ {prvdDt} 에 {menuInitial} 예약 성공!")
                 reserveOK = True
