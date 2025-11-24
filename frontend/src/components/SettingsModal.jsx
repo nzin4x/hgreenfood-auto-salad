@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 
 export default function SettingsModal({ user, onClose, onSaved }) {
-    const [menuSeq, setMenuSeq] = useState('백반A,백반B,백반C');
-    const [floorNm, setFloorNm] = useState('');
+    const [menuSeq, setMenuSeq] = useState('샐,샌,빵');
+    const [floorNm, setFloorNm] = useState('5층');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
 
@@ -59,7 +59,7 @@ export default function SettingsModal({ user, onClose, onSaved }) {
                         type="text"
                         value={menuSeq}
                         onChange={(e) => setMenuSeq(e.target.value)}
-                        placeholder="예: 백반A,백반B,백반C"
+                        placeholder="예: 샌,샐,빵"
                         style={{
                             width: '100%',
                             padding: '12px',
@@ -71,6 +71,9 @@ export default function SettingsModal({ user, onClose, onSaved }) {
                     />
                     <small style={{ color: '#666', fontSize: '12px' }}>
                         쉼표(,)로 구분하여 입력하세요
+                        샌(샌드위치)
+                        샐(샐러드)
+                        빵(빵)
                     </small>
                 </div>
 
@@ -82,7 +85,7 @@ export default function SettingsModal({ user, onClose, onSaved }) {
                         type="text"
                         value={floorNm}
                         onChange={(e) => setFloorNm(e.target.value)}
-                        placeholder="예: 본관1층"
+                        placeholder="5층"
                         style={{
                             width: '100%',
                             padding: '12px',
