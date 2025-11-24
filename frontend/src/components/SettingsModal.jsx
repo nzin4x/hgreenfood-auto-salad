@@ -1,11 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
 export default function SettingsModal({ user, onClose, onSaved }) {
     const [menuSeq, setMenuSeq] = useState('샐,샌,빵');
     const [floorNm, setFloorNm] = useState('5층');
     const [saving, setSaving] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const loadSettings = async () => {
+            try {
+                const settings = await api.getUserSettings(user.userId);
+                if (settings.menuSeq && settings.menuSeq.length > 0) {
+                    setMenuSeq(settings.menuSeq.join(','));
+                }
+                if (settings.floorNm) {
+                    setFloorNm(settings.floorNm);
+                }
+            } catch (err) {
+                console.error('Failed to load settings:', err);
+                // 기본값 유지
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadSettings();
+    }, [user.userId]);
 
     const handleSave = async () => {
         setSaving(true);

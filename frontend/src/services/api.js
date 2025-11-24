@@ -128,5 +128,17 @@ export const api = {
             throw new Error(data.message || '설정 업데이트 실패');
         }
         return response.json();
+    },
+
+    getUserSettings: async (userId) => {
+        const response = await fetch(`${API_BASE_URL}/user/get-settings?userId=${userId}`, {
+            method: 'GET',
+            headers: {'Content-Type': 'application/json'}
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || '설정 조회 실패');
+        }
+        return response.json();
     }
 };

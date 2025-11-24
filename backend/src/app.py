@@ -80,6 +80,28 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     if route == "/auth/check-device":
         from auth_handler import check_device_handler
         return check_device_handler(event, _context)
+    if route == "/user/toggle-auto-reservation":
+        from toggle_auto_reservation import toggle_auto_reservation_handler
+        return toggle_auto_reservation_handler(event, _context)
+
+    if route == "/user/delete-account":
+        from delete_account import delete_account_handler
+        return delete_account_handler(event, _context)
+
+    if route == "/user/get-settings":
+        from get_user_settings import get_user_settings_handler
+        return get_user_settings_handler(event, _context)
+
+    if route == "/user/update-settings":
+        from update_user_settings import update_user_settings_handler
+        return update_user_settings_handler(event, _context)
+
+    if route == "/reservation/make-immediate":
+        from immediate_reservation import immediate_reservation_handler
+        return immediate_reservation_handler(event, _context)
+
+    if route == "/admin/update-holidays":
+        return update_holidays_handler(event, _context)
 
     if route == "/user/toggle-auto-reservation":
         from toggle_auto_reservation import toggle_auto_reservation_handler
