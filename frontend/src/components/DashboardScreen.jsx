@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import SettingsModal from './SettingsModal';
 
 export default function DashboardScreen({ user, onLogout }) {
     const [reservations, setReservations] = useState([]);
@@ -8,6 +9,7 @@ export default function DashboardScreen({ user, onLogout }) {
     const [autoReservationEnabled, setAutoReservationEnabled] = useState(true);
     const [toggleLoading, setToggleLoading] = useState(false);
     const [immediateLoading, setImmediateLoading] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
 
     const checkReservation = async () => {
         setLoading(true);
@@ -87,6 +89,11 @@ export default function DashboardScreen({ user, onLogout }) {
             console.error('Delete account error:', error);
             setMessage({ text: error.message || '계정 삭제 실패', type: 'error' });
         }
+    };
+
+    const handleSettingsSaved = () => {
+        setShowSettings(false);
+        setMessage({ text: '설정이 저장되었습니다', type: 'success' });
     };
 
     useEffect(() => {
@@ -222,6 +229,16 @@ export default function DashboardScreen({ user, onLogout }) {
             <button onClick={checkReservation} disabled={loading} style={{ marginTop: '20px' }}>
                 예약 새로고침
             </button>
+            <button 
+                onClick={() => setShowSettings(true)} 
+                style={{ 
+                    marginTop: '10px', 
+                    background: '#764ba2',
+                    width: '100%'
+                }}
+            >
+                ⚙️ 설정
+            </button>
             <button onClick={onLogout} style={{ marginTop: '10px', background: '#6c757d' }}>
                 로그아웃
             </button>
@@ -244,6 +261,15 @@ export default function DashboardScreen({ user, onLogout }) {
                     개인정보 삭제
                 </a>
             </div>
+
+            {/* Settings Modal */}
+            {showSettings && (
+                <SettingsModal 
+                    user={user} 
+                    onClose={() => setShowSettings(false)}
+                    onSaved={handleSettingsSaved}
+                />
+            )}
         </div>
     );
 }

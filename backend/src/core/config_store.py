@@ -246,3 +246,42 @@ class ConfigStore:
             logger.error("Failed to delete profile for %s: %s", user_id, error)
             raise RuntimeError(f"Failed to delete profile for {user_id}: {error}") from error
 
+    def update_user_settings(self, user_id: str, menu_sequence: list = None, floor_name: str = None) -> None:
+        """Update user settings (menu sequence and floor)"""
+        import logging
+        logger = logging.getLogger()
+        key = {
+            "PK": f"USER#{user_id}",
+            "SK": "PROFILE",
+        }
+        
+        update_parts = []
+        attr_values = {}
+        
+        if menu_sequence is not None:
+            menu_seq_str = ",".join(menu_sequence)
+            update_parts.append("menuSeq = :menuSeq")
+            attr_values[":menuSeq"] = menu_seq_str
+        
+        if floor_name is not None:
+            update_parts.append("floorNm = :floorNm")
+            attr_values[":floorNm"] = floor_name
+        
+        if not update_parts:
+            logger.warning("No fields to update for user %s", user_id)
+            return
+        
+        update_expression = "SET " + ", ".join(update_parts)
+        
+        try:
+            logger.info("Updating settings for user %s: %s", user_id, update_expression)
+            self._table.update_item(
+                Key=key,
+                UpdateExpression=update_expression,
+                ExpressionAttributeValues=attr_values
+            )
+            logger.info("Successfully updated settings for user %s", user_id)
+        except ClientError as error:
+            logger.error("Failed to update settings for %s: %s", user_id, error)
+            raise RuntimeError(f"Failed to update settings for {user_id}: {error}") from error
+

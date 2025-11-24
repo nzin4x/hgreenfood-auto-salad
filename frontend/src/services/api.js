@@ -111,5 +111,22 @@ export const api = {
             throw new Error(data.message || '즉시 예약 실패');
         }
         return response.json();
+    },
+
+    updateUserSettings: async (userId, menuSeq, floorNm) => {
+        const response = await fetch(`${API_BASE_URL}/user/update-settings`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                userId,
+                menuSeq,
+                floorNm
+            })
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || '설정 업데이트 실패');
+        }
+        return response.json();
     }
 };

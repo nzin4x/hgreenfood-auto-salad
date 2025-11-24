@@ -20,7 +20,23 @@ function App() {
                     const fingerprint = result.visitorId;
                     setDeviceFingerprint(fingerprint);
                     console.log('Device fingerprint:', fingerprint);
-                    checkDevice(fingerprint);
+                    
+                    // Check for saved user session
+                    const savedUser = localStorage.getItem('hgreenfood_user');
+                    if (savedUser) {
+                        try {
+                            const userData = JSON.parse(savedUser);
+                            console.log('Found saved session, verifying...');
+                            // Verify with backend that device is still registered
+                            checkDevice(fingerprint);
+                        } catch (e) {
+                            console.error('Invalid saved session:', e);
+                            localStorage.removeItem('hgreenfood_user');
+                            checkDevice(fingerprint);
+                        }
+                    } else {
+                        checkDevice(fingerprint);
+                    }
                 } catch (e) {
                     console.error('Fingerprint error:', e);
                     setScreen('email');
@@ -49,17 +65,21 @@ function App() {
         try {
             const data = await api.checkDevice(fingerprint);
             if (data.authenticated) {
-                setUser({
+                const userData = {
                     userId: data.userId,
                     email: data.email,
                     sessionToken: data.sessionToken
-                });
+                };
+                setUser(userData);
+                localStorage.setItem('hgreenfood_user', JSON.stringify(userData));
                 setScreen('dashboard');
             } else {
+                localStorage.removeItem('hgreenfood_user');
                 setScreen('email');
             }
         } catch (error) {
             console.error('Device check error:', error);
+            localStorage.removeItem('hgreenfood_user');
             setScreen('email');
         }
     };
@@ -71,11 +91,13 @@ function App() {
 
     const handleVerified = (data) => {
         if (data.hasAccount) {
-            setUser({
+            const userData = {
                 userId: data.userId,
-                email: email, // or data.email if returned
+                email: email,
                 sessionToken: data.sessionToken
-            });
+            };
+            setUser(userData);
+            localStorage.setItem('hgreenfood_user', JSON.stringify(userData));
             setScreen('dashboard');
         } else {
             setScreen('setup');
@@ -83,17 +105,20 @@ function App() {
     };
 
     const handleRegistered = (userId) => {
-        setUser({
+        const userData = {
             userId: userId,
             email: email,
-            sessionToken: 'new-session' // Ideally returned from register
-        });
+            sessionToken: 'new-session'
+        };
+        setUser(userData);
+        localStorage.setItem('hgreenfood_user', JSON.stringify(userData));
         setScreen('dashboard');
     };
 
     const handleLogout = () => {
         setUser(null);
         setEmail(null);
+        localStorage.removeItem('hgreenfood_user');
         setScreen('email');
     };
 

@@ -119,6 +119,11 @@ Resources:
           Properties:
             Path: /user/delete-account
             Method: POST
+        UpdateUserSettings:
+          Type: Api
+          Properties:
+            Path: /user/update-settings
+            Method: POST
         MakeImmediateReservation:
           Type: Api
           Properties:

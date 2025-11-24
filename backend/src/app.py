@@ -59,7 +59,6 @@ def _build_service() -> ReservationService:
 def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     LOGGER.info("Received API event: %s", event.get("routeKey") or event.get("httpMethod") or event.get("rawPath"))
     
-    # Support both API Gateway (resource) and Function URL (rawPath)
     route = event.get("resource") or event.get("rawPath") or ""
 
     if route == "/register":
@@ -89,6 +88,10 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     if route == "/user/delete-account":
         from delete_account import delete_account_handler
         return delete_account_handler(event, _context)
+
+    if route == "/user/update-settings":
+        from update_user_settings import update_user_settings_handler
+        return update_user_settings_handler(event, _context)
 
     if route == "/reservation/make-immediate":
         from immediate_reservation import immediate_reservation_handler
@@ -224,7 +227,9 @@ def holiday_scheduler_handler(event: Dict[str, Any], _context: Any) -> None:
 
 
 def _parse_body(event: Dict[str, Any]) -> Dict[str, Any]:
-    body = event.get("body")
+    body = event.get("body"
+
+)
     if not body:
         return {}
     if event.get("isBase64Encoded"):
@@ -265,7 +270,7 @@ def _resolve_master_password(payload: Optional[Dict[str, Any]] = None) -> str:
             return candidate
         detail = payload.get("detail")
         if isinstance(detail, dict):
-            candidate = detail.get("masterPassword") or detail.get("master_password")
+            candidate = detail.get("masterPassword") or payload.get("master_password")
             if candidate:
                 return candidate
 

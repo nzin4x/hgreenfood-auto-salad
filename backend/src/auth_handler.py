@@ -204,6 +204,29 @@ def check_device_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]
 def _register_device(user_id: str, device_fingerprint: str) -> None:
     """사용자에게 디바이스 등록"""
     try:
+        # 먼저 기존 devices 조회
+        response = table.get_item(Key={"PK": f"USER#{user_id}", "SK": "PROFILE"})
+        item = response.get("Item")
+        
+        if not item:
+            LOGGER.warning(f"User {user_id} not found for device registration")
+            return
+        
+        devices = item.get("devices", [])
+        
+        # 이미 등록된 디바이스인지 확인
+        for device in devices:
+            if device.get("fingerprint") == device_fingerprint:
+                LOGGER.info(f"Device already registered for user {user_id}, updating lastAccessAt")
+                device["lastAccessAt"] = datetime.utcnow().isoformat()
+                table.update_item(
+                    Key={"PK": f"USER#{user_id}", "SK": "PROFILE"},
+                    UpdateExpression="SET devices = :devices",
+                    ExpressionAttributeValues={":devices": devices}
+                )
+                return
+        
+        # 새 디바이스 정보 생성
         device_info = {
             "fingerprint": device_fingerprint,
             "registeredAt": datetime.utcnow().isoformat(),
@@ -211,17 +234,16 @@ def _register_device(user_id: str, device_fingerprint: str) -> None:
         }
         
         # 기존 devices 배열에 추가
+        devices.append(device_info)
         table.update_item(
             Key={"PK": f"USER#{user_id}", "SK": "PROFILE"},
-            UpdateExpression="SET devices = list_append(if_not_exists(devices, :empty_list), :device)",
-            ExpressionAttributeValues={
-                ":device": [device_info],
-                ":empty_list": []
-            }
+            UpdateExpression="SET devices = :devices",
+            ExpressionAttributeValues={":devices": devices}
         )
-        LOGGER.info(f"Device registered for user {user_id}")
+        LOGGER.info(f"New device registered for user {user_id}")
     except ClientError as e:
         LOGGER.error(f"Failed to register device: {e}")
+
 
 
 def _update_device_access(user_id: str, device_fingerprint: str) -> None:
