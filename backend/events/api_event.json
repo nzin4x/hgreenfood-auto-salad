@@ -1,0 +1,14 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /",
+  "rawPath": "/",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST"
+    }
+  },
+  "body": "{\"userId\": \"sample-user\", \"masterPassword\": \"replace-with-master\", \"serviceDate\": \"2025-11-24\"}"
+}

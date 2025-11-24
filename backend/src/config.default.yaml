@@ -1,0 +1,22 @@
+# 기본 설정 (변경하지 마세요)
+osDvCd: ""
+userCurrAppVer: "1.2.3"
+mobiPhTrmlId: ""
+bizplcCd: "196274"
+mealDvCd: "0002"
+rownum: 9
+dlvrPlcFloorNo: "9"
+alphabetSeq: "I"
+dlvrPlcFloorSeq: 9
+remainDeliQty: -1
+dlvrPlcNm: "현대오토에버 본사"
+ordQty: 1
+totalCount: 12
+maxDelvQty: 0
+dlvrPlcSeq: 1
+dlvrRsvDvCd: 1
+dsppUseYn: "Y"
+
+# 예약 시도 설정
+max_retry: 10
+retry_interval: 5

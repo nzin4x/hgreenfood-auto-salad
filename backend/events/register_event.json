@@ -1,0 +1,6 @@
+{
+  "body": "{\n    \"userId\": \"testuser\",\n    \"password\": \"testpass123\",\n    \"pin\": \"1234\",\n    \"menuSeq\": \"샐러드,빵\",\n    \"floorNm\": \"5층\"\n  }",
+  "isBase64Encoded": false,
+  "httpMethod": "POST",
+  "resource": "/register"
+}

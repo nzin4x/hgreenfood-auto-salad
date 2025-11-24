@@ -1,0 +1,8 @@
+{
+  "source": "aws.events",
+  "detail-type": "Scheduled Event",
+  "time": "2025-11-05T04:00:00Z",
+  "detail": {
+    "masterPassword": "replace-with-master"
+  }
+}

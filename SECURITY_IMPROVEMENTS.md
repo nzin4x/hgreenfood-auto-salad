@@ -195,7 +195,7 @@ INFO - 예약 시간까지 82800초 대기
 ### 이전 (평문)
 ```yaml
 userId: "nzin4x"
-userData: "Wjstmdgh@2024"  # ⚠️ 평문 노출!
+userData: ""  # ⚠️ 평문 노출!
 menuSeq: "샌,샐,빵"
 data.go.kr:
   api:

@@ -266,6 +266,16 @@ def create_config():
     with open('config.user.yaml', 'w', encoding='utf-8') as f:
         yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
     
+    # Windows Credential Manager에 마스터 패스워드 저장
+    try:
+        import keyring
+        keyring.set_password("hgreenfood-auto-salad", "master_password", master_password)
+        print("\n🔐 마스터 패스워드가 Windows 자격 증명 관리자에 저장되었습니다.")
+        print("   (이제 프로그램 실행 시 패스워드를 입력하지 않아도 됩니다)")
+    except Exception as e:
+        print(f"\n⚠️ Windows 자격 증명 관리자 저장 실패: {e}")
+        print("   (프로그램 실행 시마다 패스워드를 입력해야 합니다)")
+    
     print("\n" + "="*60)
     print("✅ 설정 파일이 생성되었습니다!")
     print("="*60)

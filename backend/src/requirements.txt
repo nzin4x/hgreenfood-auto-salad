@@ -1,0 +1,6 @@
+boto3
+requests
+python-dateutil
+pytz
+PyYAML
+cryptography

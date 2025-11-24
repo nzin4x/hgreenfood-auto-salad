@@ -2,3 +2,4 @@ pyyaml
 requests
 tinydb
 cryptography
+keyring

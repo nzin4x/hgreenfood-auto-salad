@@ -1,0 +1,154 @@
+Transform: AWS::Serverless-2016-10-31
+Description: AWS Serverless stack for HGreenFood auto reservation
+
+Parameters:
+  MasterPasswordSsmParam:
+    Type: String
+    Default: "/hgreenfood/master-password"
+    Description: SSM Parameter Store name for master password.
+  SesSenderEmail:
+    Type: String
+    Default: ""
+    Description: Verified SES email address used as the sender.
+  DefaultTimezone:
+    Type: String
+    Default: Asia/Seoul
+    Description: IANA timezone name for scheduling reservations.
+  HolidayApiKey:
+    Type: String
+    Default: ""
+    Description: data.go.kr API key for holiday information service.
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 30
+    MemorySize: 512
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        CONFIG_TABLE_NAME: !Ref HGreenFoodTable
+        DEFAULT_CONFIG_PATH: /var/task/config.default.yaml
+        SES_SENDER_EMAIL: !Ref SesSenderEmail
+        DEFAULT_TIMEZONE: !Ref DefaultTimezone
+        MASTER_PASSWORD_SSM_PARAM: !Ref MasterPasswordSsmParam
+        HOLIDAY_API_KEY: !Ref HolidayApiKey
+    Tracing: Active
+
+Resources:
+  HGreenFoodTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: HGreenFoodAutoReserve
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hgreenfood-api
+      CodeUri: src/
+      Handler: app.api_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HGreenFoodTable
+        - SESCrudPolicy:
+            IdentityName: !Ref SesSenderEmail
+        - SSMParameterReadPolicy:
+            ParameterName: !Ref MasterPasswordSsmParam
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowMethods: ["*"]
+          AllowHeaders: ["*"]
+          AllowOrigins: ["*"]
+
+      Events:
+        RegisterUser:
+          Type: Api
+          Properties:
+            Path: /register
+            Method: POST
+        CheckReservation:
+          Type: Api
+          Properties:
+            Path: /check-reservation
+            Method: POST
+        SendVerificationCode:
+          Type: Api
+          Properties:
+            Path: /auth/send-code
+            Method: POST
+        VerifyCode:
+          Type: Api
+          Properties:
+            Path: /auth/verify-code
+            Method: POST
+        CheckDevice:
+          Type: Api
+          Properties:
+            Path: /auth/check-device
+            Method: POST
+
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hgreenfood-worker
+      CodeUri: src/
+      Handler: app.worker_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HGreenFoodTable
+        - SESCrudPolicy:
+            IdentityName: !Ref SesSenderEmail
+        - SSMParameterReadPolicy:
+            ParameterName: !Ref MasterPasswordSsmParam
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Name: hgreenfood-worker-weekday
+            Description: Trigger worker at 13:00 KST on business days
+            Schedule: cron(0 4 ? * MON-FRI *) # 13:00 KST => 04:00 UTC
+            Enabled: true
+
+  # Frontend Hosting resources removed (Deploying to Cloudflare Pages)
+
+  # SSM Parameter (Optional creation if not exists, but here we define it to manage it)
+  # Note: If the parameter already exists and was not created by CloudFormation, this might fail or require import.
+  # Since user said "include registration process", we add it.
+  # We need a parameter for the value.
+  
+  # However, user said "master key is already registered". 
+  # If we define it here, we need the value.
+  # Let's assume we just reference it in Lambda (which we did in Policies).
+  # But if user wants "registration process in SAM", maybe they mean OTHER env vars?
+  # "endpoint URL 도 환경 변수로 등록할 수 있어야 하고" -> This is for Frontend (build time) or Runtime?
+  # Frontend is static, so build time.
+  
+Outputs:
+  ApiGatewayUrl:
+    Description: API Gateway URL
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  ApiFunctionUrl:
+    Description: Function URL for API Lambda
+    Value: !GetAtt ApiFunctionUrl.FunctionUrl
+  WorkerFunctionArn:
+    Description: ARN of worker Lambda function
+    Value: !GetAtt WorkerFunction.Arn
+  DynamoTableName:
+    Description: DynamoDB table name
+    Value: !Ref HGreenFoodTable
+

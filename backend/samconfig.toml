@@ -1,0 +1,18 @@
+version = 0.1
+
+[default.build.parameters]
+use_container = true
+parallel = true
+
+[default.local_start_api.parameters]
+port = 3000
+
+[default.deploy.parameters]
+stack_name = "hgreenfood-auto-salad"
+region = "ap-northeast-2"
+s3_bucket = "hgreenfood-lambda-deploy"
+s3_prefix = "hgreenfood-auto-salad"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = false
+image_repositories = []

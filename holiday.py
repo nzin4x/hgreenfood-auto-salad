@@ -105,28 +105,87 @@ class Holiday:
                 print(f"⚠️ {key} 휴일 데이터 갱신 실패: {e}")
                 print(f"   기존 캐시 데이터를 계속 사용합니다.")
 
-    def 다음_근무일(self, 날짜):
-        현재날짜 = datetime.strptime(날짜, '%Y%m%d')
-        지금 = datetime.now()  # 현재 날짜와 시간을 가져옵니다.
-
-        # 현재 시간이 13시 이전인지 확인합니다.
-        if 지금.hour < 13:
-            조건날짜 = 현재날짜  # 오늘 날짜를 기준으로 합니다.
-        else:
-            조건날짜 = 현재날짜 + timedelta(days=1)  # 내일 날짜를 기준으로 합니다.
-
+    def get_next_action_date(self):
+        """
+        다음 예약 실행(기동) 날짜를 계산합니다.
+        - 평일 13시 이전: 오늘 13시
+        - 평일 13시 이후: 다음 평일 13시
+        - 주말/휴일: 다음 평일 13시
+        """
+        now = datetime.now()
+        today_str = now.strftime('%Y%m%d')
+        
+        # 오늘이 평일이고 휴일이 아닌지 확인
+        year, month = now.year, now.month
+        holidays, _ = self.get_cached_holidays(year, month)
+        is_workday = now.weekday() < 5 and today_str not in holidays
+        
+        if is_workday and now.hour < 13:
+            return today_str
+        
+        # 다음 평일 찾기
+        next_date = now + timedelta(days=1)
         while True:
-            year, month = 조건날짜.year, 조건날짜.month
+            year, month = next_date.year, next_date.month
             holidays, _ = self.get_cached_holidays(year, month)
+            
+            if next_date.weekday() < 5 and next_date.strftime('%Y%m%d') not in holidays:
+                return next_date.strftime('%Y%m%d')
+            
+            next_date += timedelta(days=1)
 
-            # 평일(월요일~금요일이고, 휴일이 아닐 경우) 확인
-            if 조건날짜.weekday() < 5 and 조건날짜.strftime('%Y%m%d') not in holidays:
-                break
+    def get_target_service_date(self, action_date_str):
+        """
+        예약 실행 날짜(action_date)를 기준으로 예약할 식단 날짜(service_date)를 계산합니다.
+        - 원칙: 예약 실행일의 '다음 근무일'
+        """
+        action_date = datetime.strptime(action_date_str, '%Y%m%d')
+        next_date = action_date + timedelta(days=1)
+        
+        while True:
+            year, month = next_date.year, next_date.month
+            holidays, _ = self.get_cached_holidays(year, month)
+            
+            if next_date.weekday() < 5 and next_date.strftime('%Y%m%d') not in holidays:
+                return next_date.strftime('%Y%m%d')
+            
+            next_date += timedelta(days=1)
 
-            조건날짜 += timedelta(days=1)  # 다음 날로 이동
+    def get_nearest_future_workday(self):
+        """
+        오늘을 포함하여 가장 가까운 미래의 평일(근무일)을 찾습니다.
+        - 오늘이 평일이면 오늘 반환
+        - 오늘이 휴일이면 다음 평일 반환
+        """
+        now = datetime.now()
+        date = now
+        
+        while True:
+            year, month = date.year, date.month
+            holidays, _ = self.get_cached_holidays(year, month)
+            
+            if date.weekday() < 5 and date.strftime('%Y%m%d') not in holidays:
+                return date.strftime('%Y%m%d')
+            
+            date += timedelta(days=1)
 
-        print(f"다음 근무일 {조건날짜}")
-        return 조건날짜.strftime('%Y%m%d')
+    def get_previous_workday(self, date_str):
+        """
+        주어진 날짜의 바로 전 평일(근무일)을 찾습니다.
+        """
+        date = datetime.strptime(date_str, '%Y%m%d')
+        date -= timedelta(days=1)
+        
+        while True:
+            year, month = date.year, date.month
+            holidays, _ = self.get_cached_holidays(year, month)
+            
+            if date.weekday() < 5 and date.strftime('%Y%m%d') not in holidays:
+                return date.strftime('%Y%m%d')
+            
+            date -= timedelta(days=1)
+
+
 
 
 # API URL

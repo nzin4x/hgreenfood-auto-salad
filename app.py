@@ -52,16 +52,50 @@ def save_cookies(cookies, filename):
             cookie_file.write(f"{cookie.name}={cookie.value}\n")
 
 
+def check_session():
+    """현재 세션이 유효한지 확인"""
+    url = "https://hcafe.hgreenfood.com/api/menu/reservation/selectMenuReservationList.do"
+    headers = {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Accept": "application/json, text/javascript, */*; q=0.01"
+    }
+    # 오늘 날짜로 조회 시도
+    payload = {
+        "prvdDt": datetime.now().strftime('%Y%m%d'),
+        "bizplcCd": "196274"
+    }
+    
+    try:
+        response = session.post(url, headers=headers, data=json.dumps(payload), verify=False, timeout=5)
+        if response.status_code == 200:
+            try:
+                # 응답이 JSON이고 errorCode가 있으면 세션 유효
+                res = response.json()
+                if res.get('errorCode') == 0:
+                    return True
+            except:
+                pass
+        return False
+    except:
+        return False
+
+
 def 로그인(merged_config, force=False):
     """로그인 수행 (force=True일 때만 강제 재로그인)"""
-    # 이미 쿠키 파일이 있고 force가 아니면 기존 세션 사용
+    # 이미 쿠키 파일이 있고 force가 아니면 기존 세션 사용 시도
     import os
     if not force and os.path.exists('cookies.txt'):
-        logger.debug("기존 로그인 세션 재사용")
+        logger.debug("기존 쿠키 로드 및 세션 확인...")
         cookies = load_cookies('cookies.txt')
         for name, value in cookies.items():
             session.cookies.set(name, value)
-        return True
+            
+        # 세션 유효성 검사
+        if check_session():
+            logger.info("   기존 세션 유효함")
+            return True
+        else:
+            logger.info("   기존 세션 만료됨 - 재로그인 필요")
     
     url = "https://hcafe.hgreenfood.com/api/com/login.do"
     headers = {
@@ -76,20 +110,21 @@ def 로그인(merged_config, force=False):
         "mobiPhTrmlId": merged_config["mobiPhTrmlId"]
     }
 
-    logger.info(f"🌐 API 호출: login.do")
-    logger.info(f"   요청 파라미터: userId={merged_config['userId']}")
+    logger.info(f"🌐 API 호출: login.do (사용자: {merged_config['userId']})")
 
-    response = session.post(url, headers=headers, data=json.dumps(payload), verify=False)
+    try:
+        response = session.post(url, headers=headers, data=json.dumps(payload), verify=False, timeout=10)
+        logger.info(f"   응답 상태: {response.status_code}")
 
-    logger.info(f"   응답 상태: {response.status_code}")
-
-    if json.loads(response.content)['errorCode'] == 0:
-        logger.info("   로그인 성공")
-        save_cookies(response.cookies, 'cookies.txt')
-        return True
-    else:
-        logger.error(f"   로그인 실패: errorCode={json.loads(response.content).get('errorCode')}")
-        logger.error(f"   응답 내용: {response.text[:200]}")
+        if response.status_code == 200 and json.loads(response.content)['errorCode'] == 0:
+            logger.info("   로그인 성공")
+            save_cookies(response.cookies, 'cookies.txt')
+            return True
+        else:
+            logger.error(f"   로그인 실패: {response.text[:200]}")
+            return False
+    except Exception as e:
+        logger.error(f"   로그인 중 오류: {e}")
         return False
 
 
@@ -436,6 +471,95 @@ def reserve(merged_config, prvdDt, login_once=True):
     return reserveOK, reason
 
 
+def process_missed_reservations(merged_config):
+    """
+    놓친 예약이 있는지 확인하고 처리합니다.
+    예: 토요일에 프로그램을 켰는데, 다음주 월요일 예약이 안되어 있다면 (금요일 13시에 했어야 함)
+    지금이라도 예약을 시도합니다.
+    """
+    logger.info("🔍 놓친 예약 확인 중...")
+    
+    holiday = Holiday(merged_config)
+    
+    # 1. 현재 시점에서 가장 가까운 '미래의 근무일' (Target Date) 찾기
+    # 오늘이 근무일이면 오늘 포함, 아니면 다음 근무일
+    # 예: 토요일 -> 월요일
+    # 예: 월요일 -> 월요일
+    nearest_workday = holiday.get_nearest_future_workday()
+    
+    # 2. 그 근무일을 예약하기 위한 'Action Date' (이전 근무일) 찾기
+    # 예: 월요일의 Action Date -> 금요일
+    action_date_str = holiday.get_previous_workday(nearest_workday)
+    
+    # 3. Action Date의 13:00가 지났는지 확인
+    action_dt = datetime.strptime(action_date_str, '%Y%m%d')
+    action_deadline = action_dt.replace(
+        hour=merged_config["reserve"]["at"]["hour"],
+        minute=merged_config["reserve"]["at"]["minute"],
+        second=merged_config["reserve"]["at"]["second"],
+        microsecond=0
+    )
+    
+    now = datetime.now()
+    
+    # 만약 지금이 Action Deadline보다 늦었다면 -> 이미 예약이 되어 있어야 함
+    if now > action_deadline:
+        logger.info(f"   확인 대상: {nearest_workday} (예약 실행일: {action_date_str} 13:00 지남)")
+        
+        # 예약 상태 확인
+        reservations = 예약조회요청(nearest_workday)
+        is_reserved = False
+        
+        if reservations:
+            confirmed = [r for r in reservations if r.get('prvdDt') == nearest_workday and r.get('rsvStatCd') == 'A']
+            if confirmed:
+                is_reserved = True
+                menus = [r.get('conerNm', '알 수 없음') for r in confirmed]
+                logger.info(f"   ✅ {nearest_workday} 이미 예약됨: {', '.join(menus)}")
+        
+        if not is_reserved:
+            logger.warning(f"   ⚠️ {nearest_workday} 예약이 누락되었습니다! 즉시 예약 시도합니다.")
+            
+            # 휴가 여부 확인
+            db = TinyDB(DB_FILE, ensure_ascii=False, encoding='utf-8')
+            vacation_tbl = db.table(VACATION_TBL_NM)
+            vacation_dates = vacation_tbl.search(Query().date == nearest_workday)
+            
+            if vacation_dates:
+                reason = vacation_dates[0].get('reason', '휴가')
+                logger.info(f"   🏖️ {nearest_workday}는 휴가({reason})입니다. 예약 건너뜀")
+                return
+
+            # 강제 로그인 및 예약 시도
+            if not 로그인(merged_config, force=True):
+                logger.error("   ❌ 긴급 예약 시도 중 로그인 실패")
+                return
+                
+            max_retries = 3
+            retry_count = 0
+            success = False
+            
+            while retry_count < max_retries:
+                retry_count += 1
+                logger.info(f"   🔄 긴급 예약 시도 {retry_count}/{max_retries}")
+                
+                result, reason = reserve(merged_config, nearest_workday, login_once=True)
+                
+                if result:
+                    logger.info(f"   ✅ {nearest_workday} 긴급 예약 성공: {reason}")
+                    success = True
+                    break
+                else:
+                    logger.warning(f"   ⚠️ 긴급 예약 실패: {reason}")
+                    time.sleep(2)
+            
+            if not success:
+                logger.error(f"   ❌ {nearest_workday} 긴급 예약 최종 실패")
+    else:
+        logger.info(f"   다음 예약 대상: {nearest_workday} (아직 예약 시간 전임)")
+
+
+
 def load_config_with_password():
     """설정 파일 로드 (암호화된 경우 마스터 패스워드 입력)"""
     if not os.path.exists('config.user.yaml'):
@@ -458,6 +582,23 @@ def load_config_with_password():
         except Exception:
             pass
 
+        # Windows Credential Manager에서 마스터 패스워드 조회 시도
+        try:
+            import keyring
+            saved_password = keyring.get_password("hgreenfood-auto-salad", "master_password")
+            if saved_password:
+                print("🔐 Windows 자격 증명 관리자에서 마스터 패스워드를 찾았습니다.")
+                from setup_config import load_and_decrypt_config
+                decrypted_config = load_and_decrypt_config(saved_password)
+                
+                if decrypted_config:
+                    print("✅ 설정 파일 로드 완료 (자동 로그인)\n")
+                    return decrypted_config
+                else:
+                    print("⚠️ 저장된 패스워드가 올바르지 않습니다. 다시 입력해주세요.")
+        except Exception as e:
+            logger.debug(f"Credential Manager 조회 실패: {e}")
+
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             master_password = getpass.getpass(f"마스터 패스워드를 입력하세요 ({attempt}/{max_attempts}): ")
@@ -467,6 +608,16 @@ def load_config_with_password():
             
             if decrypted_config:
                 print("✅ 설정 파일 로드 완료\n")
+                
+                # 성공한 패스워드를 Credential Manager에 자동 저장
+                try:
+                    import keyring
+                    keyring.set_password("hgreenfood-auto-salad", "master_password", master_password)
+                    print("💾 마스터 패스워드가 Windows 자격 증명 관리자에 자동 저장되었습니다.")
+                    print("   (다음 실행부터는 입력하지 않아도 됩니다)")
+                except Exception as e:
+                    logger.debug(f"Credential Manager 저장 실패: {e}")
+                
                 return decrypted_config
             else:
                 if attempt < max_attempts:
@@ -493,7 +644,7 @@ def console_menu_thread():
     print("1. 휴가 날짜 추가")
     print("2. 휴가 날짜 목록 보기")
     print("3. 휴가 날짜 삭제")
-    print("4. 현재 예약 조회")
+    print("4. 예약 목록 보기")
     print("5. 예약 취소")
     print("0/q. 종료")
     print("="*60)
@@ -513,7 +664,7 @@ def console_menu_thread():
             elif choice == "3":
                 delete_vacation_date()
             elif choice == "4":
-                show_reservations_interactive()
+                show_upcoming_reservations()
             elif choice == "5":
                 cancel_reservation_interactive()
             elif choice == "":
@@ -524,7 +675,7 @@ def console_menu_thread():
                 print("1. 휴가 날짜 추가")
                 print("2. 휴가 날짜 목록 보기")
                 print("3. 휴가 날짜 삭제")
-                print("4. 현재 예약 조회")
+                print("4. 예약 목록 보기")
                 print("5. 예약 취소")
                 print("0/q. 종료")
                 print("="*60)
@@ -679,6 +830,61 @@ def delete_vacation_date():
         print(f"❌ 휴가 삭제 중 오류: {e}")
         logger.error(f"휴가 삭제 오류: {e}")
 
+def show_upcoming_reservations():
+    """예약 목록을 조회하여 표시 (전체 조회)"""
+    print("\n" + "="*60)
+    print("📋 예약 목록 조회 중...")
+    print("="*60)
+    
+    today = datetime.now().strftime('%Y%m%d')
+    
+    # 오늘 날짜로 한 번만 조회하면 전체 목록이 반환됨
+    reservations = 예약조회요청(today, retry_on_auth_fail=True)
+    
+    if not reservations:
+        print("\n📌 조회된 예약 내역이 없습니다.")
+        print("="*60 + "\n")
+        return
+
+    # rsvStatCd가 'A'인 예약만 필터링
+    confirmed = [r for r in reservations if r.get('rsvStatCd') == 'A']
+    
+    if not confirmed:
+        print("\n📌 예약된 내역이 없습니다.")
+        print("="*60 + "\n")
+        return
+    
+    # 날짜별로 그룹화
+    from collections import defaultdict
+    by_date = defaultdict(list)
+    
+    for res in confirmed:
+        prvd_dt = res.get('prvdDt', '')
+        if prvd_dt:
+            by_date[prvd_dt].append(res)
+    
+    # 날짜 순으로 정렬하여 표시
+    for date in sorted(by_date.keys()):
+        # 날짜 포맷팅
+        if len(date) == 8:
+            formatted = f"{date[:4]}-{date[4:6]}-{date[6:]}"
+        else:
+            formatted = date
+            
+        menus = []
+        for r in by_date[date]:
+            menu = r.get('conerNm', '알 수 없음')
+            disp = r.get('dispNm', '')
+            if disp:
+                menus.append(f"{menu}({disp})")
+            else:
+                menus.append(menu)
+        
+        print(f"✅ {formatted}: {', '.join(menus)}")
+    
+    print("="*60 + "\n")
+
+
 def show_reservations_interactive():
     """현재 예약 조회 (대화형)"""
     date = input("조회할 날짜 (YYYYMMDD, Enter=내일): ").strip()
@@ -690,7 +896,12 @@ def show_reservations_interactive():
         default_config = load_yaml('config.default.yaml')
         merged_config = merge_configs(default_config, user_config)
         holiday = Holiday(merged_config)
-        date = holiday.다음_근무일(datetime.now().strftime('%Y%m%d'))
+        date = holiday.get_next_action_date()
+        # 만약 action_date가 오늘이고 13시 이전이면, 사용자가 조회를 원하는건 아마도 '오늘 예약'이거나 '내일 예약'일 것임.
+        # 하지만 여기서는 '다음 예약 대상일'을 보여주는게 맞음.
+        # get_next_action_date가 오늘을 리턴하면 -> target은 내일
+        target_date = holiday.get_target_service_date(date)
+        date = target_date
     
     if len(date) != 8 or not date.isdigit():
         print("❌ 날짜 형식이 올바르지 않습니다.")
@@ -819,6 +1030,9 @@ def main():
             logger.error("초기 로그인 실패. 프로그램 종료")
             return
         
+        # 놓친 예약 확인 및 처리
+        process_missed_reservations(merged_config)
+        
         # 콘솔 메뉴 스레드 시작 (데몬 스레드로 백그라운드 실행)
         console_thread = threading.Thread(target=console_menu_thread, daemon=True)
         console_thread.start()
@@ -833,64 +1047,85 @@ def main():
             
             cached_holidays = holiday.get_cached_holidays(now.year, now.month)[0]
             
-            # 다음 예약 대상 날짜 계산
-            prvdDt = holiday.다음_근무일(today)
+            # 다음 예약 실행 날짜(Action Date) 계산
+            # 예: 월 09:00 -> 월 13:00 (오늘)
+            # 예: 월 14:00 -> 화 13:00 (내일)
+            action_date_str = holiday.get_next_action_date()
             
-            logger.info(f"현재 시간: {now.strftime('%Y-%m-%d %H:%M:%S')}, 예약 대상일: {prvdDt}")
+            # 예약 대상 식단 날짜(Service Date) 계산
+            # 예: Action(월) -> Service(화)
+            target_service_date = holiday.get_target_service_date(action_date_str)
+            
+            logger.info(f"현재: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info(f"📅 다음 동작 예정일(Action): {action_date_str} 13:00")
+            logger.info(f"🍱 예약 대상 식단일(Target): {target_service_date}")
 
             # DB 연결
             db = TinyDB(DB_FILE, ensure_ascii=False, encoding='utf-8')
             reserve_his_tbl = db.table(RESERVATION_HISTORY_TBL_NM)
             vacation_tbl = db.table(VACATION_TBL_NM)
             
-            # 휴가 날짜 확인
-            vacation_dates = vacation_tbl.search(Query().date == prvdDt)
+            # 휴가 날짜 확인 (예약 대상 날짜가 휴가인지)
+            vacation_dates = vacation_tbl.search(Query().date == target_service_date)
             if vacation_dates:
                 vacation = vacation_dates[0]
                 reason = vacation.get('reason', '휴가')
-                logger.info(f"🏖️ {prvdDt}는 예약 금지 날짜입니다 ({reason}). 다음 근무일로 이동")
-                # 다음 근무일 계산 (휴가 날짜 건너뛰기)
-                next_date = datetime.strptime(prvdDt, '%Y%m%d') + timedelta(days=1)
-                sleep_until_next_workday_noon(next_date.strftime('%Y%m%d'), merged_config)
+                logger.info(f"🏖️ {target_service_date}는 예약 금지 날짜입니다 ({reason}).")
+                # 휴가인 경우, 그냥 다음 턴으로 넘어가야 함.
+                # 하지만 여기서 continue하면 바로 다시 루프가 돌아서 같은 날짜를 계산함.
+                # 따라서 '다음 Action Date'까지 대기해야 함.
+                
+                # 현재 Action Date가 오늘이면 -> 내일 Action Date까지 대기
+                # 현재 Action Date가 미래이면 -> 그 날짜까지 대기
+                
+                # 간단히 처리하기 위해 sleep_until_next_action 호출
+                sleep_until_action_time(action_date_str, merged_config)
+                
+                # 깨어난 후 다시 루프 돌면, 시간이 흘렀으므로 get_next_action_date가 다음 날짜를 가리킬 것임
+                # 단, 13시가 지나야 다음 날짜가 됨.
+                # 만약 13시 1분에 깨어나면 -> get_next_action_date는 내일을 가리킴. OK.
                 continue
             
             # 이미 예약 완료 여부 확인
             already_reserved = reserve_his_tbl.search(
-                (Query().date == prvdDt) & (Query().reserveOk == True)
+                (Query().date == target_service_date) & (Query().reserveOk == True)
             )
             
             if already_reserved:
-                logger.info(f"{prvdDt} 이미 예약 완료. 다음 근무일까지 대기")
-                sleep_until_next_workday_noon(prvdDt, merged_config)
+                logger.info(f"✅ {target_service_date} 이미 예약 완료되어 있습니다.")
+                sleep_until_action_time(action_date_str, merged_config)
                 continue
             
-            # 예약 시간 계산
-            reservation_time = now.replace(
+            # 예약 실행 시간 설정 (Action Date의 13:00:00)
+            action_dt = datetime.strptime(action_date_str, '%Y%m%d')
+            reservation_time = action_dt.replace(
                 hour=merged_config["reserve"]["at"]["hour"],
                 minute=merged_config["reserve"]["at"]["minute"],
                 second=merged_config["reserve"]["at"]["second"],
                 microsecond=0
             )
             
-            # 오늘이 휴일이거나 주말이면 다음 근무일까지 대기
-            if today in cached_holidays or now.weekday() >= 5:
-                logger.info(f"오늘은 휴일/주말. 다음 근무일 {prvdDt}까지 대기")
-                sleep_until_next_workday_noon(prvdDt, merged_config)
-                continue
-            
             # 예약 시간 체크
             time_until_reservation = (reservation_time - now).total_seconds()
             
             if time_until_reservation > 60:
                 # 예약 시간까지 1분 이상 남음 - 대기
-                logger.info(f"예약 시간까지 {time_until_reservation}초 대기")
-                time.sleep(min(time_until_reservation - 60, 3600))  # 최대 1시간씩 대기
+                logger.info(f"⏳ 예약 시간({reservation_time})까지 대기 ({time_until_reservation/3600:.1f}시간)")
+                # sleep_until_action_time 함수를 사용하여 대기 (인터럽트 지원)
+                sleep_until_action_time(action_date_str, merged_config)
                 continue
             
             elif -5 < time_until_reservation <= 60:
                 # 예약 시간 5초 전부터 1분 후까지 - 예약 시도
                 logger.info("⏰ 예약 시간 도달! 예약 시도 시작")
                 
+                # 13시 정각에는 반드시 강제 로그인 (세션 갱신)
+                logger.info("🔐 예약 전 강제 로그인 수행...")
+                if not 로그인(merged_config, force=True):
+                    logger.error("❌ 예약 전 로그인 실패. 1분 후 재시도")
+                    time.sleep(60)
+                    continue
+
                 max_retries = merged_config.get("max_retry", 10)
                 retry_interval = merged_config.get("retry_interval", 5)
                 
@@ -899,10 +1134,10 @@ def main():
                 
                 while retry_count < max_retries:
                     retry_count += 1
-                    logger.info(f"🔄 예약 시도 {retry_count}/{max_retries}")
+                    logger.info(f"🔄 예약 시도 {retry_count}/{max_retries} (Target: {target_service_date})")
                     
-                    # 세션 재사용하여 예약 시도
-                    result, reason = reserve(merged_config, prvdDt, login_once=True)
+                    # 예약 시도 (이미 로그인 했으므로 login_once=True)
+                    result, reason = reserve(merged_config, target_service_date, login_once=True)
                     
                     if result:
                         if "이미 예약됨" in reason:
@@ -923,14 +1158,18 @@ def main():
                 if not success:
                     logger.error(f"❌ {max_retries}회 시도 후 모든 메뉴 예약 실패")
                 
-                # 예약 시도 완료 후 다음 근무일까지 대기
-                sleep_until_next_workday_noon(prvdDt, merged_config)
+                # 예약 시도 완료 후 잠시 대기 (중복 실행 방지)
+                logger.info("💤 예약 시도 완료. 다음 사이클 대기...")
+                time.sleep(120) 
             
             else:
-                # 예약 시간이 1분 이상 지남 - 다음 예약 시간까지 대기
-                logger.info(f"⏱️ {prvdDt[:4]}-{prvdDt[4:6]}-{prvdDt[6:]} 예약 시간({reservation_time}) 지남")
-                logger.info(f"   다음 예약 대기로 전환")
-                sleep_until_next_workday_noon(prvdDt, merged_config)
+                # 예약 시간이 1분 이상 지남 (이미 지났는데 예약 안된 경우)
+                # 이 경우는 보통 프로그램이 13:01 이후에 켜진 경우인데,
+                # get_next_action_date 로직상 13시 이후에 켜지면 '내일'을 가리키므로
+                # 이 블록에 들어올 일은 거의 없음 (Action Date가 내일이면 time_until > 0 이므로)
+                # 하지만 혹시 모르니 로그 남기고 대기
+                logger.warning(f"⚠️ 예약 시간({reservation_time})이 지났습니다. 다음 사이클로 넘어갑니다.")
+                time.sleep(60)
 
     except Exception as e:
         logger.error(f"에러 발생: {e}")
@@ -940,10 +1179,10 @@ def main():
 # 대기 중단 이벤트 (휴가 추가/삭제 시 사용)
 wait_interrupt_event = threading.Event()
 
-def sleep_until_next_workday_noon(prvdDt, merged_config):
-    """다음 예약 시간까지 대기 (인터럽트 가능)"""
-    next_workday = datetime.strptime(prvdDt, '%Y%m%d')
-    target_time = next_workday.replace(
+def sleep_until_action_time(action_date_str, merged_config):
+    """다음 Action Date의 13시까지 대기 (인터럽트 가능)"""
+    action_dt = datetime.strptime(action_date_str, '%Y%m%d')
+    target_time = action_dt.replace(
         hour=merged_config["reserve"]["at"]["hour"],
         minute=merged_config["reserve"]["at"]["minute"],
         second=merged_config["reserve"]["at"]["second"],
@@ -953,42 +1192,30 @@ def sleep_until_next_workday_noon(prvdDt, merged_config):
     current_time = datetime.now()
     sleep_duration = (target_time - current_time).total_seconds()
 
-    logger.debug(f"현재={current_time}, 목표={target_time}, 대기시간={sleep_duration}초")
-
+    # 이미 지났으면 (예: 13:00:01에 호출됨) -> 그냥 리턴해서 루프 다시 돌게 함
+    # 하지만 루프에서 다시 여기로 오면 무한루프 돌 수 있음.
+    # 따라서 최소 10초 대기
     if sleep_duration <= 0:
-        logger.warning(f"목표 시간이 과거입니다. 10초 후 재시작")
-        sleep_duration = 10
+        logger.debug(f"목표 시간({target_time})이 과거입니다. 잠시 대기 후 재확인")
+        time.sleep(10)
+        return
 
-    # 날짜 포맷팅
-    formatted_date = f"{prvdDt[:4]}-{prvdDt[4:6]}-{prvdDt[6:]}"
-    
-    # 예약 상태 확인 (prvdDt에 해당하는 예약만 확인)
-    reservations = 예약조회요청(prvdDt)
-    if reservations:
-        # prvdDt가 정확히 일치하고 rsvStatCd가 'A'인 예약만 필터링
-        confirmed = [r for r in reservations if r.get('prvdDt') == prvdDt and r.get('rsvStatCd') == 'A']
-        
-        if confirmed:
-            # 예약된 메뉴 목록
-            menus = [r.get('conerNm', '알 수 없음') for r in confirmed]
-            menu_str = ', '.join(menus)
-            logger.info(f"✅ {formatted_date} 예약 완료: {menu_str}")
-            logger.info(f"   다음 예약 시간에 다음 근무일 예약 시도 예정")
-        else:
-            logger.info(f"📌 {formatted_date} 예약 대기 중")
-    else:
-        logger.info(f"📌 {formatted_date} 예약 대기 중")
-    
-    logger.info(f"⏰ 다음 예약 시간: {target_time.strftime('%Y-%m-%d %H:%M:%S')} ({sleep_duration/3600:.1f}시간 후)")
+    logger.info(f"💤 대기 모드: {target_time.strftime('%Y-%m-%d %H:%M:%S')}까지 대기 ({sleep_duration/3600:.1f}시간)")
     
     # 인터럽트 가능한 대기 (1분 단위로 체크)
     elapsed = 0
     while elapsed < sleep_duration:
+        # 1분마다 로그 찍으면 너무 많으니 1시간마다 찍거나 조용히 대기
         if wait_interrupt_event.wait(timeout=min(60, sleep_duration - elapsed)):
             logger.info("⚠️ 대기 중단 요청 감지. 즉시 재시작합니다.")
             wait_interrupt_event.clear()
             return
         elapsed += 60
+        
+        # 남은 시간 갱신 (정확도 위해)
+        remaining = (target_time - datetime.now()).total_seconds()
+        if remaining <= 0:
+            break
 
 if __name__ == '__main__':
     main()

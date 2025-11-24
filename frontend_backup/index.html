@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HGreenFood 자동 예약 서비스</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .message {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+        
+        .reservation-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .reservation-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .reservation-detail {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .reservation-detail span:first-child {
+            color: #666;
+        }
+        
+        .reservation-detail span:last-child {
+            font-weight: 600;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🥗 HGreenFood</h1>
+        <p class="subtitle">자동 예약 서비스</p>
+        
+        <div id="message"></div>
+        
+        <!-- 1. 이메일 입력 화면 -->
+        <div id="emailScreen">
+            <div class="form-group">
+                <label for="email">이메일 주소</label>
+                <input type="email" id="email" placeholder="your@email.com" required>
+                <div class="help-text">인증 코드가 발송됩니다</div>
+            </div>
+            <button onclick="sendVerificationCode()">인증 코드 받기</button>
+        </div>
+        
+        <!-- 2. 인증 코드 입력 화면 -->
+        <div id="verifyScreen" class="hidden">
+            <div class="form-group">
+                <label for="verificationCode">인증 코드</label>
+                <input type="text" id="verificationCode" placeholder="6자리 숫자" maxlength="6" required>
+                <div class="help-text">이메일로 받은 6자리 코드를 입력하세요</div>
+            </div>
+            <button onclick="verifyCode()">인증 확인</button>
+            <button onclick="backToEmail()" style="margin-top: 10px; background: #6c757d;">다시 입력</button>
+        </div>
+        
+        <!-- 3. 사용자 설정 화면 -->
+        <div id="setupScreen" class="hidden">
+            <h2 style="margin-bottom: 20px; color: #667eea;">계정 설정</h2>
+            
+            <div class="form-group">
+                <label for="userId">사용자 ID</label>
+                <input type="text" id="userId" placeholder="회사 사용자 ID" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">비밀번호</label>
+                <input type="password" id="password" placeholder="회사 비밀번호" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="pin">PIN</label>
+                <input type="text" id="pin" placeholder="4자리 PIN" maxlength="4" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="menuSeq">메뉴 우선순위</label>
+                <input type="text" id="menuSeq" placeholder="예: 샌,샐,빵" value="샌,샐,빵" required>
+                <div class="help-text">샌드위치, 샐러드, 빵 등의 순서</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="floorNm">배달 층</label>
+                <input type="text" id="floorNm" placeholder="예: 5층" required>
+            </div>
+            
+            <button onclick="registerUser()">등록 완료</button>
+        </div>
+        
+        <!-- 4. 대시보드 화면 -->
+        <div id="dashboardScreen" class="hidden">
+            <h2 style="margin-bottom: 20px; color: #667eea;">내 예약 정보</h2>
+            
+            <div id="userInfo" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #666;">사용자</span>
+                    <span id="displayUserId" style="font-weight: 600;"></span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #666;">이메일</span>
+                    <span id="displayEmail" style="font-weight: 600;"></span>
+                </div>
+            </div>
+            
+            <div id="reservationList"></div>
+            
+            <button onclick="checkReservation()">예약 새로고침</button>
+            <button onclick="logout()" style="margin-top: 10px; background: #6c757d;">로그아웃</button>
+        </div>
+        
+        <!-- 로딩 화면 -->
+        <div id="loadingScreen" class="loading hidden">
+            <div class="spinner"></div>
+            <p style="margin-top: 15px; color: #667eea;">처리 중...</p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
+    <script>
+        // API 엔드포인트 설정 (배포 후 수정 필요)
+        const API_BASE_URL = 'YOUR_API_GATEWAY_URL';  // 예: https://xxx.execute-api.ap-northeast-2.amazonaws.com/Prod
+        
+        let deviceFingerprint = null;
+        let currentEmail = null;
+        let currentUserId = null;
+        let sessionToken = null;
+        
+        // 디바이스 지문 생성
+        async function initFingerprint() {
+            const fp = await FingerprintJS.load();
+            const result = await fp.get();
+            deviceFingerprint = result.visitorId;
+            console.log('Device fingerprint:', deviceFingerprint);
+            
+            // 자동 로그인 시도
+            checkDevice();
+        }
+        
+        // 페이지 로드 시 실행
+        window.onload = () => {
+            initFingerprint();
+        };
+        
+        // 화면 전환
+        function showScreen(screenId) {
+            ['emailScreen', 'verifyScreen', 'setupScreen', 'dashboardScreen', 'loadingScreen'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(screenId).classList.remove('hidden');
+        }
+        
+        // 메시지 표시
+        function showMessage(text, type = 'success') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = `message ${type}`;
+            messageDiv.textContent = text;
+            messageDiv.classList.remove('hidden');
+            
+            setTimeout(() => {
+                messageDiv.classList.add('hidden');
+            }, 5000);
+        }
+        
+        // 1. 디바이스 확인 (자동 로그인)
+        async function checkDevice() {
+            if (!deviceFingerprint) return;
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/check-device`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({deviceFingerprint})
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    currentUserId = data.userId;
+                    currentEmail = data.email;
+                    sessionToken = data.sessionToken;
+                    
+                    // 대시보드로 이동
+                    showDashboard();
+                } else {
+                    // 이메일 입력 화면 표시
+                    showScreen('emailScreen');
+                }
+            } catch (error) {
+                console.error('Device check error:', error);
+                showScreen('emailScreen');
+            }
+        }
+        
+        // 2. 인증 코드 발송
+        async function sendVerificationCode() {
+            const email = document.getElementById('email').value.trim();
+            
+            if (!email || !email.includes('@')) {
+                showMessage('올바른 이메일 주소를 입력하세요', 'error');
+                return;
+            }
+            
+            currentEmail = email;
+            showScreen('loadingScreen');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/send-code`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email})
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showScreen('verifyScreen');
+                    showMessage('인증 코드가 이메일로 발송되었습니다', 'success');
+                } else {
+                    showScreen('emailScreen');
+                    showMessage(data.message || '인증 코드 발송 실패', 'error');
+                }
+            } catch (error) {
+                console.error('Send code error:', error);
+                showScreen('emailScreen');
+                showMessage('네트워크 오류가 발생했습니다', 'error');
+            }
+        }
+        
+        // 3. 인증 코드 검증
+        async function verifyCode() {
+            const code = document.getElementById('verificationCode').value.trim();
+            
+            if (code.length !== 6) {
+                showMessage('6자리 인증 코드를 입력하세요', 'error');
+                return;
+            }
+            
+            showScreen('loadingScreen');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/auth/verify-code`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        email: currentEmail,
+                        code,
+                        deviceFingerprint
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    sessionToken = data.sessionToken;
+                    
+                    if (data.hasAccount) {
+                        // 기존 사용자 - 대시보드로
+                        currentUserId = data.userId;
+                        showDashboard();
+                    } else {
+                        // 신규 사용자 - 설정 화면으로
+                        showScreen('setupScreen');
+                        showMessage('계정 정보를 입력하세요', 'success');
+                    }
+                } else {
+                    showScreen('verifyScreen');
+                    showMessage(data.message || '인증 실패', 'error');
+                }
+            } catch (error) {
+                console.error('Verify code error:', error);
+                showScreen('verifyScreen');
+                showMessage('네트워크 오류가 발생했습니다', 'error');
+            }
+        }
+        
+        // 4. 사용자 등록
+        async function registerUser() {
+            const userId = document.getElementById('userId').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const pin = document.getElementById('pin').value.trim();
+            const menuSeq = document.getElementById('menuSeq').value.trim();
+            const floorNm = document.getElementById('floorNm').value.trim();
+            
+            if (!userId || !password || !pin || !menuSeq || !floorNm) {
+                showMessage('모든 필드를 입력하세요', 'error');
+                return;
+            }
+            
+            if (pin.length !== 4) {
+                showMessage('PIN은 4자리여야 합니다', 'error');
+                return;
+            }
+            
+            showScreen('loadingScreen');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        userId,
+                        password,
+                        pin,
+                        menuSeq,
+                        floorNm,
+                        email: currentEmail,
+                        deviceFingerprint
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentUserId = userId;
+                    showDashboard();
+                    showMessage('등록이 완료되었습니다!', 'success');
+                } else {
+                    showScreen('setupScreen');
+                    showMessage(data.message || '등록 실패', 'error');
+                }
+            } catch (error) {
+                console.error('Register error:', error);
+                showScreen('setupScreen');
+                showMessage('네트워크 오류가 발생했습니다', 'error');
+            }
+        }
+        
+        // 5. 대시보드 표시
+        function showDashboard() {
+            document.getElementById('displayUserId').textContent = currentUserId;
+            document.getElementById('displayEmail').textContent = currentEmail;
+            showScreen('dashboardScreen');
+            checkReservation();
+        }
+        
+        // 6. 예약 정보 조회
+        async function checkReservation() {
+            try {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const targetDate = tomorrow.toISOString().split('T')[0];
+                
+                const response = await fetch(`${API_BASE_URL}/check-reservation`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        targetDate
+                    })
+                });
+                
+                const data = await response.json();
+                
+                const reservationList = document.getElementById('reservationList');
+                
+                if (data.hasReservation && data.reservations.length > 0) {
+                    reservationList.innerHTML = data.reservations.map(r => `
+                        <div class="reservation-card">
+                            <h3>${r.dispNm || '예약됨'}</h3>
+                            <div class="reservation-detail">
+                                <span>날짜</span>
+                                <span>${r.prvdDt ? r.prvdDt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : targetDate}</span>
+                            </div>
+                            <div class="reservation-detail">
+                                <span>코너</span>
+                                <span>${r.conerNm || '알 수 없음'}</span>
+                            </div>
+                            <div class="reservation-detail">
+                                <span>상태</span>
+                                <span style="color: #28a745;">✓ 예약 완료</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    reservationList.innerHTML = `
+                        <div class="message" style="text-align: center; padding: 30px;">
+                            <p style="font-size: 48px; margin-bottom: 10px;">📅</p>
+                            <p style="color: #666;">예약 대기 중입니다</p>
+                            <p style="color: #999; font-size: 12px; margin-top: 5px;">매일 13:00에 자동으로 예약됩니다</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Check reservation error:', error);
+                document.getElementById('reservationList').innerHTML = `
+                    <div class="message error">예약 정보를 불러올 수 없습니다</div>
+                `;
+            }
+        }
+        
+        // 이메일 화면으로 돌아가기
+        function backToEmail() {
+            document.getElementById('verificationCode').value = '';
+            showScreen('emailScreen');
+        }
+        
+        // 로그아웃
+        function logout() {
+            currentEmail = null;
+            currentUserId = null;
+            sessionToken = null;
+            document.getElementById('email').value = '';
+            document.getElementById('verificationCode').value = '';
+            showScreen('emailScreen');
+            showMessage('로그아웃되었습니다', 'success');
+        }
+    </script>
+</body>
+</html>

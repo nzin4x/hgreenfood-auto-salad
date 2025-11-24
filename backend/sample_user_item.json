@@ -1,0 +1,34 @@
+{
+  "PK": {"S": "USER#sample-user"},
+  "SK": {"S": "PROFILE"},
+  "userId": {"S": "sample-user"},
+  "menuSeq": {"S": "샌,샐,빵"},
+  "floorNm": {"S": "5층"},
+  "preferences": {
+    "M": {
+      "bizplcCd": {"S": "196274"},
+      "mealDvCd": {"S": "0002"}
+    }
+  },
+  "userData_encrypted": {"S": "REPLACE_WITH_ENCRYPTED_PASSWORD"},
+  "_salt": {"S": "REPLACE_WITH_PASSWORD_SALT"},
+  "data.go.kr": {
+    "M": {
+      "api": {
+        "M": {
+          "key_encrypted": {"S": "REPLACE_WITH_ENCRYPTED_HOLIDAY_KEY"},
+          "holiday": {
+            "M": {
+              "endpoint": {"S": "http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "notificationEmails": {
+    "L": [
+      {"S": "notify@example.com"}
+    ]
+  }
+}

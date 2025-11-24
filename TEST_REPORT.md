@@ -126,7 +126,7 @@ python test_simple.py both
 `config.user.yaml`:
 ```yaml
 userId: "nzin4x"
-userData: "Wjstmdgh@2024"
+userData: ""
 menuSeq: "샌,샐,빵"  # 선호 순서대로
 ```
 
