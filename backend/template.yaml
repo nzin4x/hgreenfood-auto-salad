@@ -114,6 +114,16 @@ Resources:
           Properties:
             Path: /user/toggle-auto-reservation
             Method: POST
+        DeleteAccount:
+          Type: Api
+          Properties:
+            Path: /user/delete-account
+            Method: POST
+        MakeImmediateReservation:
+          Type: Api
+          Properties:
+            Path: /reservation/make-immediate
+            Method: POST
         UpdateHolidays:
           Type: Api
           Properties:

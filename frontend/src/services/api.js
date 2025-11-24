@@ -82,5 +82,34 @@ export const api = {
             throw new Error(data.message || '자동 예약 설정 변경 실패');
         }
         return response.json();
+    },
+
+    deleteAccount: async (userId) => {
+        const response = await fetch(`${API_BASE_URL}/user/delete-account`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                userId,
+                confirm: true
+            })
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || '계정 삭제 실패');
+        }
+        return response.json();
+    },
+
+    makeImmediateReservation: async (userId) => {
+        const response = await fetch(`${API_BASE_URL}/reservation/make-immediate`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ userId })
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || '즉시 예약 실패');
+        }
+        return response.json();
     }
 };

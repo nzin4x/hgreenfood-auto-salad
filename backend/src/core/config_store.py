@@ -230,3 +230,19 @@ class ConfigStore:
             logger.error("Failed to update auto-reservation status for %s: %s", user_id, error)
             raise RuntimeError(f"Failed to update auto-reservation status for {user_id}: {error}") from error
 
+    def delete_profile(self, user_id: str) -> None:
+        """Delete user profile (account deletion)"""
+        import logging
+        logger = logging.getLogger()
+        key = {
+            "PK": f"USER#{user_id}",
+            "SK": "PROFILE",
+        }
+        try:
+            logger.info("Deleting profile for user: %s", user_id)
+            self._table.delete_item(Key=key)
+            logger.info("Successfully deleted profile for user: %s", user_id)
+        except ClientError as error:
+            logger.error("Failed to delete profile for %s: %s", user_id, error)
+            raise RuntimeError(f"Failed to delete profile for {user_id}: {error}") from error
+

@@ -66,32 +66,34 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
         from register_user import register_user_handler
         return register_user_handler(event, _context)
     
-    # 예약 확인 이벤트
     if route == "/check-reservation":
         from check_reservation import check_reservation_handler
         return check_reservation_handler(event, _context)
     
-    # 이메일 인증 코드 발송
     if route == "/auth/send-code":
         from auth_handler import send_verification_code_handler
         return send_verification_code_handler(event, _context)
     
-    # 이메일 인증 코드 검증
     if route == "/auth/verify-code":
         from auth_handler import verify_code_handler
         return verify_code_handler(event, _context)
     
-    # 디바이스 확인 (자동 로그인)
     if route == "/auth/check-device":
         from auth_handler import check_device_handler
         return check_device_handler(event, _context)
 
-    # 자동 예약 토글
     if route == "/user/toggle-auto-reservation":
         from toggle_auto_reservation import toggle_auto_reservation_handler
         return toggle_auto_reservation_handler(event, _context)
 
-    # 휴일 정보 수동 업데이트
+    if route == "/user/delete-account":
+        from delete_account import delete_account_handler
+        return delete_account_handler(event, _context)
+
+    if route == "/reservation/make-immediate":
+        from immediate_reservation import immediate_reservation_handler
+        return immediate_reservation_handler(event, _context)
+
     if route == "/admin/update-holidays":
         return update_holidays_handler(event, _context)
 
@@ -144,7 +146,6 @@ def worker_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     results = []
     for user_id in user_ids or []:
         try:
-            # Check if auto-reservation is enabled for this user
             preferences = service.config_store.get_user_preferences(user_id, master_password)
             if not preferences.auto_reservation_enabled:
                 LOGGER.info("Auto-reservation disabled for user %s, skipping", user_id)
@@ -177,7 +178,6 @@ def update_holidays_handler(event: Dict[str, Any], _context: Any) -> Dict[str, A
     LOGGER.info("Received holiday update request")
     try:
         payload = _parse_body(event)
-        # Default to current year/month if not provided
         today = date.today()
         year = int(payload.get("year", today.year))
         month = int(payload.get("month", today.month))
@@ -203,7 +203,6 @@ def update_holidays_handler(event: Dict[str, Any], _context: Any) -> Dict[str, A
 def holiday_scheduler_handler(event: Dict[str, Any], _context: Any) -> None:
     LOGGER.info("Holiday scheduler triggered")
     today = date.today()
-    # Calculate next month
     if today.month == 12:
         next_year = today.year + 1
         next_month = 1

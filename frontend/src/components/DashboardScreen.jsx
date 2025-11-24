@@ -7,6 +7,7 @@ export default function DashboardScreen({ user, onLogout }) {
     const [message, setMessage] = useState(null);
     const [autoReservationEnabled, setAutoReservationEnabled] = useState(true);
     const [toggleLoading, setToggleLoading] = useState(false);
+    const [immediateLoading, setImmediateLoading] = useState(false);
 
     const checkReservation = async () => {
         setLoading(true);
@@ -47,6 +48,44 @@ export default function DashboardScreen({ user, onLogout }) {
             setMessage({ text: error.message || '설정 변경 실패', type: 'error' });
         } finally {
             setToggleLoading(false);
+        }
+    };
+
+    const handleImmediateReservation = async () => {
+        if (!confirm('지금 바로 예약을 진행하시겠습니까?')) {
+            return;
+        }
+        
+        setImmediateLoading(true);
+        setMessage(null);
+        try {
+            const result = await api.makeImmediateReservation(user.userId);
+            if (result.success) {
+                setMessage({ text: `예약 성공: ${result.message}`, type: 'success' });
+                checkReservation(); // Refresh reservations
+            } else {
+                setMessage({ text: `예약 실패: ${result.message}`, type: 'error' });
+            }
+        } catch (error) {
+            console.error('Immediate reservation error:', error);
+            setMessage({ text: error.message || '즉시 예약 실패', type: 'error' });
+        } finally {
+            setImmediateLoading(false);
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!confirm('진짜 삭제하시겠습니까?\n\n모든 예약 정보와 설정이 삭제되며 복구할 수 없습니다.')) {
+            return;
+        }
+        
+        try {
+            await api.deleteAccount(user.userId);
+            alert('계정이 삭제되었습니다.');
+            onLogout();
+        } catch (error) {
+            console.error('Delete account error:', error);
+            setMessage({ text: error.message || '계정 삭제 실패', type: 'error' });
         }
     };
 
@@ -165,6 +204,17 @@ export default function DashboardScreen({ user, onLogout }) {
                         {autoReservationEnabled && (
                             <p style={{ color: '#999', fontSize: '12px', marginTop: '5px' }}>매일 13:00에 자동으로 예약됩니다</p>
                         )}
+                        <button 
+                            onClick={handleImmediateReservation} 
+                            disabled={immediateLoading}
+                            style={{ 
+                                marginTop: '15px', 
+                                background: '#ff9800',
+                                opacity: immediateLoading ? 0.6 : 1
+                            }}
+                        >
+                            {immediateLoading ? '예약 중...' : '지금 바로 예약하기'}
+                        </button>
                     </div>
                 )}
             </div>
@@ -175,6 +225,25 @@ export default function DashboardScreen({ user, onLogout }) {
             <button onClick={onLogout} style={{ marginTop: '10px', background: '#6c757d' }}>
                 로그아웃
             </button>
+            
+            {/* Delete Account Link */}
+            <div style={{ textAlign: 'center', marginTop: '15px' }}>
+                <a 
+                    href="#" 
+                    onClick={(e) => {
+                        e.preventDefault();
+                        handleDeleteAccount();
+                    }}
+                    style={{ 
+                        fontSize: '11px', 
+                        color: '#999', 
+                        textDecoration: 'underline',
+                        cursor: 'pointer'
+                    }}
+                >
+                    개인정보 삭제
+                </a>
+            </div>
         </div>
     );
 }
