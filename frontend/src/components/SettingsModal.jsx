@@ -100,7 +100,7 @@ export default function SettingsModal({ user, onClose, onSaved }) {
 
                 <div style={{ marginBottom: '25px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#333' }}>
-                        층 (선택사항)
+                        n층
                     </label>
                     <input
                         type="text"
