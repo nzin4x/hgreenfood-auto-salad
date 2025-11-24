@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+import boto3
 from typing import Any, Dict
 from datetime import datetime, timedelta
 from core import ConfigStore, ReservationClient
@@ -14,37 +15,63 @@ LOGGER.setLevel(logging.INFO)
 
 def check_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     """현재 예약 상태를 확인하는 Lambda 핸들러"""
+    LOGGER.info("=== CHECK RESERVATION HANDLER STARTED ===")
     LOGGER.info("Received check reservation event: %s", event)
     
     try:
+        LOGGER.info("Step 1: Parsing request body")
         # Parse body
         body = event.get("body")
         if event.get("isBase64Encoded"):
             import base64
             body = base64.b64decode(body).decode()
         payload = json.loads(body) if body else {}
+        LOGGER.info("Parsed payload: %s", payload)
         
+        LOGGER.info("Step 2: Getting user ID")
         # Get user ID
         user_id = payload.get("userId") or os.environ.get("DEFAULT_USER_ID")
         if not user_id:
+            LOGGER.warning("No userId provided")
             return _response(400, {"message": "userId is required"})
+        LOGGER.info("User ID: %s", user_id)
         
-        # Get master password
+        LOGGER.info("Step 3: Retrieving master password from SSM")
+        # Get master password from SSM
         master_password = os.environ.get("MASTER_PASSWORD")
         if not master_password:
+            ssm_param = os.environ.get("MASTER_PASSWORD_SSM_PARAM")
+            if ssm_param:
+                try:
+                    LOGGER.info("Fetching master password from SSM: %s", ssm_param)
+                    ssm_client = boto3.client("ssm")
+                    response = ssm_client.get_parameter(Name=ssm_param, WithDecryption=True)
+                    master_password = response["Parameter"]["Value"]
+                    LOGGER.info("Successfully retrieved master password from SSM")
+                except Exception as e:
+                    LOGGER.error("Failed to fetch master password from SSM: %s", str(e), exc_info=True)
+                    return _response(500, {"message": f"Failed to fetch master password: {str(e)}"})
+        
+        if not master_password:
+            LOGGER.error("Master password not configured")
             return _response(500, {"message": "Master password not configured"})
         
+        LOGGER.info("Step 4: Parsing target date")
         # Get target date (default: tomorrow)
         target_date_str = payload.get("targetDate")
         if target_date_str:
             target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
         else:
             target_date = (datetime.now() + timedelta(days=1)).date()
+        LOGGER.info("Target date: %s", target_date)
         
+        LOGGER.info("Step 5: Loading user preferences")
         # Load user preferences
         config_store = ConfigStore()
         preferences = config_store.get_user_preferences(user_id, master_password)
+        LOGGER.info("User preferences loaded successfully")
         
+        LOGGER.info("Step 6: Creating reservation client and logging in")
         # Check reservation status
         client = ReservationClient()
         
@@ -56,14 +83,18 @@ def check_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
         )
         
         if not login_result.success:
+            LOGGER.warning("Login failed: %s", login_result.message)
             return _response(401, {
                 "message": "Login failed",
                 "error": login_result.message
             })
+        LOGGER.info("Login successful")
         
+        LOGGER.info("Step 7: Checking existing reservations")
         # Check existing reservations
         prvd_dt = target_date.strftime("%Y%m%d")
         reservations = client.check_existing_reservations(preferences.raw_payload, prvd_dt)
+        LOGGER.info("Found %d reservations", len(reservations))
         
         result = {
             "userId": user_id,
@@ -72,20 +103,29 @@ def check_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
             "reservations": reservations
         }
         
+        LOGGER.info("=== CHECK RESERVATION HANDLER COMPLETED SUCCESSFULLY ===")
         LOGGER.info("Check result: %s", result)
         return _response(200, result)
         
     except KeyError as e:
-        LOGGER.exception("User not found")
+        LOGGER.error("=== CHECK RESERVATION HANDLER FAILED (User not found) ===")
+        LOGGER.exception("User not found: %s", str(e))
         return _response(404, {"message": f"User not found: {str(e)}"})
     except Exception as error:
-        LOGGER.exception("Error checking reservation")
+        LOGGER.error("=== CHECK RESERVATION HANDLER FAILED ===")
+        LOGGER.exception("Error checking reservation: %s", str(error))
         return _response(500, {"message": str(error)})
 
 
 def _response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "statusCode": status_code,
-        "headers": {"Content-Type": "application/json"},
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Methods": "*",
+        },
         "body": json.dumps(body, ensure_ascii=False),
     }
+

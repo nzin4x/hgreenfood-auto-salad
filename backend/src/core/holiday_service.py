@@ -15,21 +15,49 @@ class HolidayService:
         endpoint: str = "http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo",
         session: Optional[requests.Session] = None,
         timeout: int = 10,
+        config_store: Optional[Any] = None,  # Avoid circular import type hint if possible, or use Any
     ) -> None:
         self.endpoint = endpoint
         self.session = session or requests.Session()
         self.timeout = timeout
+        self.config_store = config_store
         self._cache: Dict[str, Set[str]] = {}
 
     def is_holiday(self, target: date, api_key: Optional[str]) -> bool:
         if not api_key:
             return False
+        
+        # 1. Check local memory cache
         key = target.strftime("%Y%m")
-        month_cache = self._cache.get(key)
-        if month_cache is None:
-            month_cache = self._fetch_month(target.year, target.month, api_key)
-            self._cache[key] = month_cache
+        if key in self._cache:
+            return target.strftime("%Y%m%d") in self._cache[key]
+
+        # 2. Check DynamoDB (ConfigStore)
+        if self.config_store:
+            stored_holidays = self.config_store.get_holidays(target.year, target.month)
+            if stored_holidays is not None:
+                self._cache[key] = stored_holidays
+                return target.strftime("%Y%m%d") in stored_holidays
+
+        # 3. Fetch from API
+        month_cache = self._fetch_month(target.year, target.month, api_key)
+        self._cache[key] = month_cache
+        
+        # 4. Save to DynamoDB
+        if self.config_store:
+            try:
+                self.config_store.save_holidays(target.year, target.month, month_cache)
+            except Exception:
+                # Log error but don't fail the check
+                pass
+                
         return target.strftime("%Y%m%d") in month_cache
+
+    def fetch_and_save_holidays(self, year: int, month: int, api_key: str) -> Set[str]:
+        holidays = self._fetch_month(year, month, api_key)
+        if self.config_store:
+            self.config_store.save_holidays(year, month, holidays)
+        return holidays
 
     def _fetch_month(self, year: int, month: int, api_key: str) -> Set[str]:
         params = {

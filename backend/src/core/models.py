@@ -16,7 +16,7 @@ class UserPreferences:
     timezone: Optional[str] = None
     salt: Optional[str] = None
     notification_emails: List[str] = field(default_factory=list)
-    notification_emails: List[str] = field(default_factory=list)
+    auto_reservation_enabled: bool = True
 
 
 @dataclass

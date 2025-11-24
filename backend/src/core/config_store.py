@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -90,6 +90,11 @@ class ConfigStore:
         if isinstance(notifications, str):
             notifications = [notifications]
         notifications = [addr for addr in notifications if addr]
+        
+        # Auto-reservation toggle (default: True)
+        auto_reservation_enabled = item.get("autoReservationEnabled", True)
+        if isinstance(auto_reservation_enabled, str):
+            auto_reservation_enabled = auto_reservation_enabled.lower() in ('true', '1', 'yes')
 
         return UserPreferences(
             user_id=item.get("userId", user_id),
@@ -101,6 +106,7 @@ class ConfigStore:
             timezone=timezone,
             salt=item.get("_salt") or item.get("salt"),
             notification_emails=notifications,
+            auto_reservation_enabled=auto_reservation_enabled,
         )
 
     def _fetch_profile_item(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -151,9 +157,14 @@ class ConfigStore:
     # Convenience helpers for potential future writes ---------------------
 
     def save_profile(self, item: Dict[str, Any]) -> None:
+        import logging
+        logger = logging.getLogger()
         try:
+            logger.info("Saving profile for user: %s", item.get("userId"))
             self._table.put_item(Item=item)
+            logger.info("Successfully saved profile for user: %s", item.get("userId"))
         except ClientError as error:
+            logger.error("Failed to persist profile for %s: %s", item.get("userId"), error)
             raise RuntimeError(f"Failed to persist profile for {item.get('userId')}: {error}") from error
 
     def list_users(self) -> List[str]:
@@ -171,4 +182,51 @@ class ConfigStore:
         except ClientError as error:
             raise RuntimeError(f"Failed to query configuration table: {error}") from error
         items = response.get("Items", [])
-        return [entry.get("userId") for entry in items]
+    def save_holidays(self, year: int, month: int, dates: Set[str]) -> None:
+        item = {
+            "PK": "HOLIDAY",
+            "SK": f"{year}{month:02d}",
+            "dates": list(dates) if dates else [],  # Store as list to avoid empty set issues
+        }
+        try:
+            self._table.put_item(Item=item)
+        except ClientError as error:
+            raise RuntimeError(f"Failed to save holidays: {error}") from error
+
+    def get_holidays(self, year: int, month: int) -> Optional[Set[str]]:
+        key = {
+            "PK": "HOLIDAY",
+            "SK": f"{year}{month:02d}",
+        }
+        try:
+            response = self._table.get_item(Key=key)
+        except ClientError:
+            return None
+
+        item = response.get("Item")
+        if not item:
+            return None
+
+        dates = item.get("dates", [])
+        return set(dates)
+
+    def update_auto_reservation_status(self, user_id: str, enabled: bool) -> None:
+        """Update the auto-reservation enabled status for a user"""
+        import logging
+        logger = logging.getLogger()
+        key = {
+            "PK": f"USER#{user_id}",
+            "SK": "PROFILE",
+        }
+        try:
+            logger.info("Updating auto-reservation status for user %s to %s", user_id, enabled)
+            self._table.update_item(
+                Key=key,
+                UpdateExpression="SET autoReservationEnabled = :enabled",
+                ExpressionAttributeValues={":enabled": enabled}
+            )
+            logger.info("Successfully updated auto-reservation status for user %s", user_id)
+        except ClientError as error:
+            logger.error("Failed to update auto-reservation status for %s: %s", user_id, error)
+            raise RuntimeError(f"Failed to update auto-reservation status for {user_id}: {error}") from error
+

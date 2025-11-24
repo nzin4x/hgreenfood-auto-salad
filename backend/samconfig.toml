@@ -13,6 +13,8 @@ region = "ap-northeast-2"
 s3_bucket = "hgreenfood-lambda-deploy"
 s3_prefix = "hgreenfood-auto-salad"
 capabilities = "CAPABILITY_IAM"
-confirm_changeset = true
+confirm_changeset = false
 resolve_s3 = false
 image_repositories = []
+parameter_overrides = "MasterPasswordSsmParam=/hgreenfood/master-password SesSenderEmail=nzin4x@gmail.com HolidayApiKey=c62c05fc5c76c77e6f0c65fb106636a9317f25d6f5cc6ecf64a3d93935c2485f DefaultTimezone=Asia/Seoul"
+

@@ -35,6 +35,11 @@ Globals:
         MASTER_PASSWORD_SSM_PARAM: !Ref MasterPasswordSsmParam
         HOLIDAY_API_KEY: !Ref HolidayApiKey
     Tracing: Active
+  Api:
+    Cors:
+      AllowMethods: "'*'"
+      AllowHeaders: "'*'"
+      AllowOrigin: "'*'"
 
 Resources:
   HGreenFoodTable:
@@ -66,8 +71,11 @@ Resources:
             TableName: !Ref HGreenFoodTable
         - SESCrudPolicy:
             IdentityName: !Ref SesSenderEmail
-        - SSMParameterReadPolicy:
-            ParameterName: !Ref MasterPasswordSsmParam
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${MasterPasswordSsmParam}"
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
@@ -101,6 +109,16 @@ Resources:
           Properties:
             Path: /auth/check-device
             Method: POST
+        ToggleAutoReservation:
+          Type: Api
+          Properties:
+            Path: /user/toggle-auto-reservation
+            Method: POST
+        UpdateHolidays:
+          Type: Api
+          Properties:
+            Path: /admin/update-holidays
+            Method: POST
 
   WorkerFunction:
     Type: AWS::Serverless::Function
@@ -113,8 +131,11 @@ Resources:
             TableName: !Ref HGreenFoodTable
         - SESCrudPolicy:
             IdentityName: !Ref SesSenderEmail
-        - SSMParameterReadPolicy:
-            ParameterName: !Ref MasterPasswordSsmParam
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${MasterPasswordSsmParam}"
       Events:
         DailySchedule:
           Type: Schedule
@@ -122,6 +143,29 @@ Resources:
             Name: hgreenfood-worker-weekday
             Description: Trigger worker at 13:00 KST on business days
             Schedule: cron(0 4 ? * MON-FRI *) # 13:00 KST => 04:00 UTC
+            Enabled: true
+
+  HolidayUpdaterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: hgreenfood-holiday-updater
+      CodeUri: src/
+      Handler: app.holiday_scheduler_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HGreenFoodTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${MasterPasswordSsmParam}"
+      Events:
+        MonthlySchedule:
+          Type: Schedule
+          Properties:
+            Name: hgreenfood-holiday-monthly
+            Description: Trigger holiday update on 25th of every month at 10:00 KST
+            Schedule: cron(0 1 25 * ? *) # 10:00 KST => 01:00 UTC
             Enabled: true
 
   # Frontend Hosting resources removed (Deploying to Cloudflare Pages)

@@ -66,5 +66,21 @@ export const api = {
             throw new Error('예약 정보 조회 실패');
         }
         return response.json();
+    },
+
+    toggleAutoReservation: async (userId, enabled) => {
+        const response = await fetch(`${API_BASE_URL}/user/toggle-auto-reservation`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                userId,
+                enabled
+            })
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || '자동 예약 설정 변경 실패');
+        }
+        return response.json();
     }
 };

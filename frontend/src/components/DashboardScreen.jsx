@@ -5,6 +5,8 @@ export default function DashboardScreen({ user, onLogout }) {
     const [reservations, setReservations] = useState([]);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
+    const [autoReservationEnabled, setAutoReservationEnabled] = useState(true);
+    const [toggleLoading, setToggleLoading] = useState(false);
 
     const checkReservation = async () => {
         setLoading(true);
@@ -29,6 +31,25 @@ export default function DashboardScreen({ user, onLogout }) {
         }
     };
 
+    const handleToggleAutoReservation = async () => {
+        setToggleLoading(true);
+        setMessage(null);
+        try {
+            const newState = !autoReservationEnabled;
+            await api.toggleAutoReservation(user.userId, newState);
+            setAutoReservationEnabled(newState);
+            setMessage({ 
+                text: newState ? '자동 예약이 활성화되었습니다' : '자동 예약이 비활성화되었습니다', 
+                type: 'success' 
+            });
+        } catch (error) {
+            console.error('Toggle error:', error);
+            setMessage({ text: error.message || '설정 변경 실패', type: 'error' });
+        } finally {
+            setToggleLoading(false);
+        }
+    };
+
     useEffect(() => {
         checkReservation();
     }, []);
@@ -45,6 +66,66 @@ export default function DashboardScreen({ user, onLogout }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ color: '#666' }}>이메일</span>
                     <span style={{ fontWeight: 600 }}>{user.email}</span>
+                </div>
+            </div>
+
+            {/* Auto-Reservation Toggle */}
+            <div style={{ 
+                marginBottom: '20px', 
+                padding: '15px', 
+                background: autoReservationEnabled ? '#e8f5e9' : '#fff3e0', 
+                borderRadius: '8px',
+                border: `2px solid ${autoReservationEnabled ? '#4caf50' : '#ff9800'}`
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <div style={{ fontWeight: 600, marginBottom: '5px' }}>
+                            자동 예약 {autoReservationEnabled ? '활성화' : '비활성화'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>
+                            {autoReservationEnabled 
+                                ? '매일 13:00에 자동으로 예약됩니다' 
+                                : '자동 예약이 일시 중지되었습니다'}
+                        </div>
+                    </div>
+                    <label style={{ 
+                        position: 'relative', 
+                        display: 'inline-block', 
+                        width: '50px', 
+                        height: '24px',
+                        cursor: toggleLoading ? 'not-allowed' : 'pointer'
+                    }}>
+                        <input 
+                            type="checkbox" 
+                            checked={autoReservationEnabled}
+                            onChange={handleToggleAutoReservation}
+                            disabled={toggleLoading}
+                            style={{ opacity: 0, width: 0, height: 0 }}
+                        />
+                        <span style={{
+                            position: 'absolute',
+                            cursor: toggleLoading ? 'not-allowed' : 'pointer',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            backgroundColor: autoReservationEnabled ? '#4caf50' : '#ccc',
+                            transition: '0.4s',
+                            borderRadius: '24px'
+                        }}>
+                            <span style={{
+                                position: 'absolute',
+                                content: '',
+                                height: '18px',
+                                width: '18px',
+                                left: autoReservationEnabled ? '29px' : '3px',
+                                bottom: '3px',
+                                backgroundColor: 'white',
+                                transition: '0.4s',
+                                borderRadius: '50%'
+                            }}></span>
+                        </span>
+                    </label>
                 </div>
             </div>
 
@@ -81,7 +162,9 @@ export default function DashboardScreen({ user, onLogout }) {
                     <div className="message" style={{ textAlign: 'center', padding: '30px' }}>
                         <p style={{ fontSize: '48px', marginBottom: '10px' }}>📅</p>
                         <p style={{ color: '#666' }}>예약 대기 중입니다</p>
-                        <p style={{ color: '#999', fontSize: '12px', marginTop: '5px' }}>매일 13:00에 자동으로 예약됩니다</p>
+                        {autoReservationEnabled && (
+                            <p style={{ color: '#999', fontSize: '12px', marginTop: '5px' }}>매일 13:00에 자동으로 예약됩니다</p>
+                        )}
                     </div>
                 )}
             </div>

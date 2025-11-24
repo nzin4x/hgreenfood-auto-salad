@@ -62,18 +62,14 @@ sam.cmd build
 
 ### 3. SAM Deploy
 
-Git Bash에서 `C:\Program` 오류가 발생하거나 줄바꿈 문제가 생길 수 있으므로, `cmd /c`를 사용하여 한 줄로 실행하는 것을 권장합니다.
+**중요**: 파라미터 값은 반드시 큰따옴표(`"`)로 감싸야 합니다. 특히 슬래시(`/`)나 공백이 포함된 값의 경우 필수입니다.
 
+**권장 명령어** (확인 없이 자동 배포):
 ```bash
-cmd /c "sam.cmd deploy --parameter-overrides MasterPasswordSsmParam=/hgreenfood/master-password SesSenderEmail=nzin4x@gmail.com HolidayApiKey=c62c05fc5c76c77e6f0c65fb106636a9317f25d6f5cc6ecf64a3d93935c2485f DefaultTimezone=Asia/Seoul"
+sam.cmd deploy --no-confirm-changeset --parameter-overrides MasterPasswordSsmParam="/hgreenfood/master-password" SesSenderEmail=nzin4x@gmail.com HolidayApiKey=c62c05fc5c76c77e6f0c65fb106636a9317f25d6f5cc6ecf64a3d93935c2485f DefaultTimezone="Asia/Seoul"
 ```
 
-또는 guided 모드 (인터랙티브):
-```bash
-cmd /c "sam.cmd deploy --guided"
-```
-
-또는 guided 모드:
+**첫 배포 또는 대화형 설정**:
 ```bash
 sam.cmd deploy --guided
 ```

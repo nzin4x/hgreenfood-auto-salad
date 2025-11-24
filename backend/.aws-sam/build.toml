@@ -7,6 +7,6 @@ architecture = "x86_64"
 handler = "app.api_handler"
 manifest_hash = ""
 packagetype = "Zip"
-functions = ["ApiFunction", "WorkerFunction"]
+functions = ["ApiFunction", "WorkerFunction", "HolidayUpdaterFunction"]
 
 [layer_build_definitions]
