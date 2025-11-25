@@ -183,7 +183,7 @@ class ReservationService:
         
         # 제목 한글화
         subject_prefix = "✅" if success else "⚠️"
-        subject = f"{subject_prefix} H.GreenFood {attempt.target_date.isoformat()} [{attempt.details.get("conerNm", "")}] 예약 결과"
+        subject = f"{subject_prefix} H.GreenFood {attempt.target_date.isoformat()} [{attempt.details.get('conerNm', '')}] 예약 결과"
         
         # 본문 구성
         body_lines = [
