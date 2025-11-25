@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import ExclusionCalendar from './ExclusionCalendar';
 
 export default function SettingsModal({ user, onClose, onSaved }) {
     const [menuSeq, setMenuSeq] = useState('샐,샌,빵');
     const [floorNm, setFloorNm] = useState('5층');
     const [hgUserId, setHgUserId] = useState('');
     const [hgUserPw, setHgUserPw] = useState('');
+    const [exclusionDates, setExclusionDates] = useState([]);
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -19,6 +21,9 @@ export default function SettingsModal({ user, onClose, onSaved }) {
                 }
                 if (settings.floorNm) {
                     setFloorNm(settings.floorNm);
+                }
+                if (settings.exclusionDates) {
+                    setExclusionDates(settings.exclusionDates);
                 }
                 // Note: We don't load password for security
             } catch (err) {
@@ -49,6 +54,17 @@ export default function SettingsModal({ user, onClose, onSaved }) {
             setError(err.message || '설정 저장 실패');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSaveExclusionDates = async (dates) => {
+        try {
+            await api.updateExclusionDates(user.userId, dates);
+            setExclusionDates(dates);
+            alert('제외 날짜가 저장되었습니다');
+        } catch (err) {
+            console.error('Exclusion dates update error:', err);
+            alert(err.message || '제외 날짜 저장 실패');
         }
     };
 
@@ -183,6 +199,15 @@ export default function SettingsModal({ user, onClose, onSaved }) {
                     <small style={{ color: '#999', fontSize: '11px' }}>
                         비워두면 변경되지 않습니다
                     </small>
+                </div>
+
+                {/* Exclusion Calendar */}
+                <div style={{ marginBottom: '25px' }}>
+                    <ExclusionCalendar 
+                        userId={user.userId}
+                        initialDates={exclusionDates}
+                        onSave={handleSaveExclusionDates}
+                    />
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>

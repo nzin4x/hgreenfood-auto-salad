@@ -132,6 +132,7 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
             "menuSeq": menu_seq,
             "floorNm": floor_nm,
             "email": email,
+            "notificationEmails": [email],  # Enable reservation notifications by default
             "devices": devices,
             "_salt": salt,
         }

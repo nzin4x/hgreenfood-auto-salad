@@ -55,7 +55,8 @@ def get_user_settings_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
         return _response(200, {
             "userId": user_id,
             "menuSeq": preferences.menu_sequence,
-            "floorNm": preferences.floor_name
+            "floorNm": preferences.floor_name,
+            "exclusionDates": preferences.exclusion_dates
         })
         
     except Exception as error:

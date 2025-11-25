@@ -42,6 +42,13 @@ class ReservationService:
                 attempt = ReservationAttempt(False, "Skipped due to public holiday", target_date, [])
                 self._notify(preferences, attempt, success=False)
                 return attempt
+        
+        # Check user exclusion dates
+        target_date_str = target_date.isoformat()
+        if target_date_str in preferences.exclusion_dates:
+            attempt = ReservationAttempt(False, f"Skipped due to user exclusion date: {target_date_str}", target_date, [])
+            self._notify(preferences, attempt, success=False)
+            return attempt
 
         login_result = self.reservation_client.login(preferences.user_id, preferences.password, preferences.raw_payload)
         if not login_result.success:
@@ -173,16 +180,58 @@ class ReservationService:
     def _notify(self, preferences, attempt: ReservationAttempt, success: bool) -> None:
         if not self.notifier or not preferences.notification_emails:
             return
+        
+        # 제목 한글화
         subject_prefix = "✅" if success else "⚠️"
-        subject = f"{subject_prefix} H.GreenFood reservation result"
+        subject = f"{subject_prefix} H.GreenFood {attempt.target_date.isoformat()} [{attempt.details.get("conerNm", "")}] 예약 결과"
+        
+        # 본문 구성
         body_lines = [
-            f"User: {preferences.user_id}",
-            f"Target date: {attempt.target_date.isoformat()}",
-            f"Success: {attempt.success}",
-            f"Message: {attempt.message}",
+            f"안녕하세요, {preferences.user_id}님",
+            "",
+            f"예약 날짜: {attempt.target_date.isoformat()}",
+            f"예약 결과: {'성공' if attempt.success else '실패'}",
+            f"메시지: {attempt.message}",
         ]
-        if attempt.attempted_menus:
-            body_lines.append(f"Attempted menus: {', '.join(attempt.attempted_menus)}")
+        
+        # 예약 상세 정보 추출
         if attempt.details:
-            body_lines.append(f"Details: {attempt.details}")
+            menu_name = attempt.details.get("dispNm", "")
+            building = attempt.details.get("dlvrPlcNm", "")
+            floor = attempt.details.get("floorNm", "")
+            corner_name = attempt.details.get("conerNm", "")
+            
+            body_lines.append("")
+            body_lines.append("=== 예약 상세 ===")
+            if menu_name:
+                body_lines.append(f"메뉴: {menu_name}")
+            if corner_name:
+                body_lines.append(f"코너: {corner_name}")
+            if building:
+                body_lines.append(f"배달 건물: {building}")
+            if floor:
+                body_lines.append(f"배달 층: {floor}")
+        
+        # 선호 메뉴 목록
+        if attempt.attempted_menus:
+            body_lines.append("")
+            body_lines.append(f"시도한 메뉴 순서: {', '.join(attempt.attempted_menus)}")
+        
+        # 다음 예약 예정일 계산
+        if success:
+            tz = pytz.timezone(preferences.timezone or self.timezone)
+            holiday_api_key = os.environ.get("HOLIDAY_API_KEY")
+            next_date = self._next_service_date(tz, holiday_api_key)
+            next_date_str = next_date.strftime("%Y년 %m월 %d일")
+            weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][next_date.weekday()]
+            
+            body_lines.append("")
+            body_lines.append(f"다음 예약 예정: {next_date_str} ({weekday_kr}요일) 오후 1시 1분")
+        
+        # HGreenFood 링크
+        body_lines.append("")
+        body_lines.append("예약 현황 확인: https://hcafe.hgreenfood.com/ctf/menu/reservation/menuReservation.do")
+        body_lines.append("")
+        body_lines.append("감사합니다.")
+        
         self.notifier.send(subject, "\n".join(body_lines), preferences.notification_emails)

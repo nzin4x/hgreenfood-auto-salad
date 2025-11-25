@@ -144,5 +144,21 @@ export const api = {
             throw new Error(data.message || '설정 조회 실패');
         }
         return response.json();
+    },
+
+    updateExclusionDates: async (userId, exclusionDates) => {
+        const response = await fetch(`${API_BASE_URL}/user/update-exclusion-dates`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                userId,
+                exclusionDates
+            })
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || '제외 날짜 업데이트 실패');
+        }
+        return response.json();
     }
 };

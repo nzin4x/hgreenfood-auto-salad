@@ -21,6 +21,16 @@ function App() {
                     setDeviceFingerprint(fingerprint);
                     console.log('Device fingerprint:', fingerprint);
                     
+                    // Check if user explicitly logged out
+                    const loggedOut = localStorage.getItem('hgreenfood_logged_out');
+                    if (loggedOut === 'true') {
+                        console.log('User previously logged out, skipping auto-login');
+                        localStorage.removeItem('hgreenfood_logged_out');
+                        localStorage.removeItem('hgreenfood_user');
+                        setScreen('email');
+                        return;
+                    }
+                    
                     // Check for saved user session
                     const savedUser = localStorage.getItem('hgreenfood_user');
                     if (savedUser) {
@@ -118,6 +128,7 @@ function App() {
     const handleLogout = () => {
         setUser(null);
         setEmail(null);
+        localStorage.setItem('hgreenfood_logged_out', 'true');
         localStorage.removeItem('hgreenfood_user');
         setScreen('email');
     };

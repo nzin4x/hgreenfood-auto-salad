@@ -131,7 +131,7 @@ export default function DashboardScreen({ user, onLogout }) {
                 </div>
             </div>
 
-            {/* Auto-Reservation Toggle */}
+
             {/* Auto-Reservation Toggle */}
             <div style={{ 
                 marginBottom: '20px', 

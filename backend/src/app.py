@@ -95,6 +95,10 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     if route == "/user/update-settings":
         from update_user_settings import update_user_settings_handler
         return update_user_settings_handler(event, _context)
+    
+    if route == "/user/update-exclusion-dates":
+        from update_exclusion_dates import update_exclusion_dates_handler
+        return update_exclusion_dates_handler(event, _context)
 
     if route == "/reservation/make-immediate":
         from immediate_reservation import immediate_reservation_handler

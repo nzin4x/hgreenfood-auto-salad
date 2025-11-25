@@ -69,8 +69,14 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref HGreenFoodTable
-        - SESCrudPolicy:
-            IdentityName: !Ref SesSenderEmail
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource:
+                - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/nz.pe.kr"
+                - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/i@nz.pe.kr"
         - Statement:
             - Effect: Allow
               Action:
@@ -129,6 +135,11 @@ Resources:
           Properties:
             Path: /user/get-settings
             Method: GET
+        UpdateExclusionDates:
+          Type: Api
+          Properties:
+            Path: /user/update-exclusion-dates
+            Method: POST
         MakeImmediateReservation:
           Type: Api
           Properties:
@@ -149,8 +160,14 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref HGreenFoodTable
-        - SESCrudPolicy:
-            IdentityName: !Ref SesSenderEmail
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource:
+                - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/nz.pe.kr"
+                - !Sub "arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/i@nz.pe.kr"
         - Statement:
             - Effect: Allow
               Action:
@@ -161,8 +178,8 @@ Resources:
           Type: Schedule
           Properties:
             Name: hgreenfood-worker-weekday
-            Description: Trigger worker at 13:00 KST on business days
-            Schedule: cron(0 4 ? * MON-FRI *) # 13:00 KST => 04:00 UTC
+            Description: Trigger worker at 13:01 KST on business days
+            Schedule: cron(1 4 ? * MON-FRI *) # 13:01 KST => 04:01 UTC
             Enabled: true
 
   HolidayUpdaterFunction:

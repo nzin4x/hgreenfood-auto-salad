@@ -91,10 +91,20 @@ class ConfigStore:
             notifications = [notifications]
         notifications = [addr for addr in notifications if addr]
         
+        # If no notificationEmails, use email field as fallback
+        if not notifications and item.get("email"):
+            notifications = [item.get("email")]
+        
         # Auto-reservation toggle (default: True)
         auto_reservation_enabled = item.get("autoReservationEnabled", True)
         if isinstance(auto_reservation_enabled, str):
             auto_reservation_enabled = auto_reservation_enabled.lower() in ('true', '1', 'yes')
+        
+        # Load exclusion dates
+        exclusion_dates = item.get("exclusionDates", [])
+        if isinstance(exclusion_dates, str):
+            exclusion_dates = [exclusion_dates]
+        exclusion_dates = [d for d in exclusion_dates if d]
 
         return UserPreferences(
             user_id=item.get("userId", user_id),
@@ -107,6 +117,7 @@ class ConfigStore:
             salt=item.get("_salt") or item.get("salt"),
             notification_emails=notifications,
             auto_reservation_enabled=auto_reservation_enabled,
+            exclusion_dates=exclusion_dates,
         )
 
     def _fetch_profile_item(self, user_id: str) -> Optional[Dict[str, Any]]:
@@ -183,6 +194,28 @@ class ConfigStore:
             raise RuntimeError(f"Failed to query configuration table: {error}") from error
         items = response.get("Items", [])
         return [item["userId"] for item in items if "userId" in item]
+    
+    def save_exclusion_dates(self, user_id: str, dates: List[str]) -> None:
+        """Save user exclusion dates with auto-cleanup of old dates (> 1 month ago)"""
+        from datetime import datetime, timedelta
+        
+        # Filter out dates older than 1 month
+        cutoff_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        filtered_dates = [d for d in dates if d >= cutoff_date]
+        
+        key = {
+            "PK": f"USER#{user_id}",
+            "SK": "PROFILE",
+        }
+        
+        try:
+            self._table.update_item(
+                Key=key,
+                UpdateExpression="SET exclusionDates = :dates",
+                ExpressionAttributeValues={":dates": filtered_dates},
+            )
+        except ClientError as error:
+            raise RuntimeError(f"Failed to save exclusion dates for {user_id}: {error}") from error
 
     def save_holidays(self, year: int, month: int, dates: Set[str]) -> None:
         item = {

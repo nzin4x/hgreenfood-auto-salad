@@ -57,27 +57,21 @@ def send_verification_code_handler(event: Dict[str, Any], _context: Any) -> Dict
         # SES로 이메일 발송
         sender = os.environ.get('SES_SENDER_EMAIL', 'no-reply@example.com')
         
-        # SES Sandbox 모드 대응: 수신자 이메일 검증 시도
-        try:
-            LOGGER.info(f"Attempting to verify email identity for {email}")
-            ses.verify_email_identity(EmailAddress=email)
-        except Exception as e:
-            # 이미 검증되었거나 권한 문제 등은 무시하고 진행 (send_email에서 최종 확인)
-            LOGGER.warning(f"Failed to verify email identity (might be already verified or permission issue): {e}")
+        # Production mode: Domain nz.pe.kr is verified, no need to verify individual emails
 
-        subject = "HGreenFood 예약 서비스 인증 코드"
+        subject = "HGreenFood 자동 예약 서비스 가입을 위한 인증 코드"
         body_text = f"""
 안녕하세요,
 
-HGreenFood 자동 예약 서비스 인증 코드입니다.
+HGreenFood 자동 예약 서비스 가입을 위한 인증 코드입니다.
 
 인증 코드: {verification_code}
 
 이 코드는 10분간 유효합니다.
 
-감사합니다.
+가입중인 웹페이지에서 이 코드를 입력해주세요.
 
-(참고: 이메일을 받지 못하셨다면 스팸함을 확인하시거나, AWS SES 검증 이메일을 먼저 승인해주세요.)
+감사합니다.
 """
         
         try:

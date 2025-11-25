@@ -17,6 +17,7 @@ class UserPreferences:
     salt: Optional[str] = None
     notification_emails: List[str] = field(default_factory=list)
     auto_reservation_enabled: bool = True
+    exclusion_dates: List[str] = field(default_factory=list)  # ISO format dates (YYYY-MM-DD)
 
 
 @dataclass
