@@ -68,12 +68,82 @@ class ReservationService:
         attempted = []
         last_error = None
 
+        # 메뉴 목록 조회
+        bizplc_cd = preferences.raw_payload.get("bizplcCd", "196274")
+        menu_list_result = self.reservation_client.fetch_reserve_menu_list(target_prvd_dt, bizplc_cd)
+        available_menus = []
+        if menu_list_result.success:
+            data_sets = menu_list_result.raw.get("dataSets", {})
+            available_menus = data_sets.get("reserveList", [])
+        else:
+            LOGGER.warning(f"Failed to fetch menu list: {menu_list_result.error_message}")
+
+        attempted = []
+        last_error = None
+
         for menu_initial in preferences.menu_sequence:
             coner_dv_cd = self.reservation_client.menu_code_for(menu_initial)
             if not coner_dv_cd:
                 continue
+            
+            # 1. Find matching menu item from available_menus (fetched earlier)
+            menu_item = next((m for m in available_menus if m.get("conerDvCd") == coner_dv_cd), None)
+            if not menu_item:
+                LOGGER.warning(f"Menu {menu_initial} (code {coner_dv_cd}) not found in available menus")
+                continue
+
+            # 2. Fetch Delivery Info Type List to get floor details
+            delivery_info_result = self.reservation_client.fetch_delivery_info_type_list(preferences.raw_payload, coner_dv_cd, target_prvd_dt)
+            delivery_info_item = None
+            if delivery_info_result.success:
+                delivery_list = delivery_info_result.raw.get("dataSets", {}).get("deliveryInfoTypeList", [])
+                # Find item matching user's floor name
+                target_floor = preferences.floor_name
+                delivery_info_item = next((d for d in delivery_list if d.get("floorNm") == target_floor), None)
+                
+                if not delivery_info_item:
+                    LOGGER.warning(f"Floor {target_floor} not found in delivery info list. Available: {[d.get('floorNm') for d in delivery_list]}")
+                    # Fallback? Or continue? Let's try to proceed with what we have or skip?
+                    # If floor is critical, we might fail here. But let's try to use the first item if specific floor not found?
+                    # No, user wants specific floor.
+                    # But if user didn't set floor, maybe default?
+                    if not target_floor and delivery_list:
+                         delivery_info_item = delivery_list[0]
+            else:
+                LOGGER.warning(f"Failed to fetch delivery info: {delivery_info_result.error_message}")
+
+            if not delivery_info_item:
+                 LOGGER.warning("Could not determine delivery info (floor details). Skipping.")
+                 continue
+
+            # 3. Build Payload
+            reservation_payload = dict(preferences.raw_payload)
+            reservation_payload.update({
+                "bizplcCd": menu_item.get("bizplcCd"),
+                "conerDvCd": coner_dv_cd,
+                "mealDvCd": menu_item.get("mealDvCd", "0002"),
+                "prvdDt": target_prvd_dt,
+                "rownum": delivery_info_item.get("rownum"),
+                "dlvrPlcFloorNo": delivery_info_item.get("dlvrPlcFloorNo"),
+                "alphabetSeq": delivery_info_item.get("alphabetSeq"),
+                "dlvrPlcFloorSeq": delivery_info_item.get("dlvrPlcFloorSeq"),
+                "remainDeliQty": delivery_info_item.get("remainDeliQty"),
+                "dlvrPlcNm": delivery_info_item.get("dlvrPlcNm"),
+                "ordQty": 1,
+                "totalCount": delivery_info_item.get("totalCount"),
+                "floorNm": delivery_info_item.get("floorNm"), # Use the one from API
+                "maxDelvQty": delivery_info_item.get("maxDelvQty"),
+                "dlvrPlcSeq": delivery_info_item.get("dlvrPlcSeq"),
+                "dlvrRsvDvCd": 1,
+                "dsppUseYn": "Y"
+            })
+            
             attempted.append(menu_initial)
-            result = self.reservation_client.reserve_menu(preferences.raw_payload, coner_dv_cd, target_prvd_dt)
+            import logging
+            logger = logging.getLogger()
+            logger.info(f"Reserving menu {menu_initial} for user {preferences.user_id} with floor: {preferences.floor_name}")
+            
+            result = self.reservation_client.reserve_menu(reservation_payload, coner_dv_cd, target_prvd_dt, preferences.floor_name)
             if result.success:
                 attempt = ReservationAttempt(True, f"Reserved for menu {menu_initial}", target_date, attempted.copy(), result.raw)
                 self._notify(preferences, attempt, success=True)

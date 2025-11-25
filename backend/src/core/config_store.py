@@ -182,6 +182,8 @@ class ConfigStore:
         except ClientError as error:
             raise RuntimeError(f"Failed to query configuration table: {error}") from error
         items = response.get("Items", [])
+        return [item["userId"] for item in items if "userId" in item]
+
     def save_holidays(self, year: int, month: int, dates: Set[str]) -> None:
         item = {
             "PK": "HOLIDAY",
@@ -246,8 +248,9 @@ class ConfigStore:
             logger.error("Failed to delete profile for %s: %s", user_id, error)
             raise RuntimeError(f"Failed to delete profile for {user_id}: {error}") from error
 
-    def update_user_settings(self, user_id: str, menu_sequence: list = None, floor_name: str = None) -> None:
-        """Update user settings (menu sequence and floor)"""
+    def update_user_settings(self, user_id: str, menu_sequence: list = None, floor_name: str = None, 
+                            hg_user_id: str = None, hg_user_pw: str = None, master_password: str = None) -> None:
+        """Update user settings (menu sequence, floor, and optionally HGreen credentials)"""
         import logging
         logger = logging.getLogger()
         key = {
@@ -266,6 +269,21 @@ class ConfigStore:
         if floor_name is not None:
             update_parts.append("floorNm = :floorNm")
             attr_values[":floorNm"] = floor_name
+        
+        # Update HGreen ID if provided
+        if hg_user_id is not None:
+            update_parts.append("hgUserId = :hgUserId")
+            attr_values[":hgUserId"] = hg_user_id
+        
+        # Update HGreen password if provided (encrypt it)
+        if hg_user_pw is not None:
+            if not master_password:
+                logger.error("Master password required to encrypt HGreen password")
+                raise ValueError("Master password is required to update HGreen password")
+            
+            encrypted_pw = self._encrypt(hg_user_pw, master_password)
+            update_parts.append("hgUserPw = :hgUserPw")
+            attr_values[":hgUserPw"] = encrypted_pw
         
         if not update_parts:
             logger.warning("No fields to update for user %s", user_id)

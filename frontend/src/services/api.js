@@ -113,15 +113,19 @@ export const api = {
         return response.json();
     },
 
-    updateUserSettings: async (userId, menuSeq, floorNm) => {
+    updateUserSettings: async (userId, menuSeq, floorNm, hgUserId, hgUserPw) => {
+        const body = {
+            userId,
+            menuSeq,
+            floorNm
+        };
+        if (hgUserId) body.hgUserId = hgUserId;
+        if (hgUserPw) body.hgUserPw = hgUserPw;
+        
         const response = await fetch(`${API_BASE_URL}/user/update-settings`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                userId,
-                menuSeq,
-                floorNm
-            })
+            body: JSON.stringify(body)
         });
         if (!response.ok) {
             const data = await response.json();

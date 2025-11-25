@@ -35,11 +35,16 @@ def update_user_settings_handler(event: Dict[str, Any], _context: Any) -> Dict[s
         # Optional fields to update
         menu_sequence = payload.get("menuSeq")  # e.g., ["백반A", "백반B"]
         floor_name = payload.get("floorNm")
+        hg_user_id = payload.get("hgUserId")
+        hg_user_pw = payload.get("hgUserPw")
         
-        if not menu_sequence and not floor_name:
+        if not menu_sequence and not floor_name and not hg_user_id and not hg_user_pw:
             return _response(400, {"message": "At least one field to update is required"})
         
-        LOGGER.info("User ID: %s, MenuSeq: %s, FloorNm: %s", user_id, menu_sequence, floor_name)
+        LOGGER.info("User ID: %s, MenuSeq: %s, FloorNm: %s, HgUserId: %s, HgUserPw: %s", 
+                    user_id, menu_sequence, floor_name, 
+                    hg_user_id if hg_user_id else "not provided",
+                    "***" if hg_user_pw else "not provided")
         
         LOGGER.info("Step 3: Fetching master password from SSM")
         master_password = os.environ.get("MASTER_PASSWORD")
@@ -62,7 +67,7 @@ def update_user_settings_handler(event: Dict[str, Any], _context: Any) -> Dict[s
         
         LOGGER.info("Step 4: Updating user settings in DynamoDB")
         config_store = ConfigStore()
-        config_store.update_user_settings(user_id, menu_sequence, floor_name)
+        config_store.update_user_settings(user_id, menu_sequence, floor_name, hg_user_id, hg_user_pw, master_password)
         
         LOGGER.info("=== UPDATE USER SETTINGS HANDLER COMPLETED SUCCESSFULLY ===")
         return _response(200, {

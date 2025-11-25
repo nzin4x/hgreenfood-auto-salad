@@ -69,22 +69,6 @@ export default function SetupScreen({ email, deviceFingerprint, onRegistered }) 
                 <input type="password" id="password" placeholder="회사 비밀번호" value={formData.password} onChange={handleChange} required />
             </div>
             
-            <div className="form-group">
-                <label htmlFor="pin">PIN</label>
-                <input type="text" id="pin" placeholder="4자리 PIN" maxLength="4" value={formData.pin} onChange={handleChange} required />
-            </div>
-            
-            <div className="form-group">
-                <label htmlFor="menuSeq">메뉴 우선순위</label>
-                <input type="text" id="menuSeq" placeholder="예: 샌,샐,빵" value={formData.menuSeq} onChange={handleChange} required />
-                <div className="help-text">샌드위치, 샐러드, 빵 등의 순서</div>
-            </div>
-            
-            <div className="form-group">
-                <label htmlFor="floorNm">배달 층</label>
-                <input type="text" id="floorNm" placeholder="예: 5층" value={formData.floorNm} onChange={handleChange} required />
-            </div>
-            
             <button onClick={handleRegister} disabled={loading}>
                 {loading ? '처리 중...' : '등록 완료'}
             </button>

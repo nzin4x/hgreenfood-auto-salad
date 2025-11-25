@@ -48,13 +48,72 @@ class ReservationClient:
         message = json_body.get("errorMsg") if json_body else response.text
         return LoginResult(False, message or "Login failed", json_body)
 
-    def reserve_menu(self, payload_template: Dict[str, str], coner_dv_cd: str, prvd_dt: str) -> ApiCallResult:
+    def reserve_menu(self, payload_template: Dict[str, Any], coner_dv_cd: str, prvd_dt: str, floor_name: Optional[str] = None) -> ApiCallResult:
         url = f"{self.base_url}/api/menu/reservation/insertReservationOrder.do"
         payload = dict(payload_template)
+        
+        # If payload_template is just the login session data, we add defaults.
+        # If it's a fully constructed payload from ReservationService, we trust it.
+        # We ensure critical fields are set.
         payload.update({
             "conerDvCd": coner_dv_cd,
             "prvdDt": prvd_dt,
         })
+        
+        # Add defaults if missing
+        defaults = {
+            "mealDvCd": "0002",
+            "dlvrRsvDvCd": 1,
+            "dsppUseYn": "Y",
+            "ordQty": 1,
+            "dlvrPlcSeq": 1,
+        }
+        for k, v in defaults.items():
+            payload.setdefault(k, v)
+
+        if floor_name:
+            payload["floorNm"] = floor_name
+        
+        # Debug logging for payload
+        import logging
+        logger = logging.getLogger()
+        logger.info(f"Full Reserve Payload: {json.dumps(payload, ensure_ascii=False)}")
+        
+        response = self.session.post(
+            url,
+            data=json.dumps(payload),
+            headers=self._json_headers(),
+            timeout=self.timeout,
+            verify=False,
+        )
+        return self._wrap_response(response)
+
+    def fetch_reserve_menu_list(self, prvd_dt: str, bizplc_cd: str) -> ApiCallResult:
+        url = f"{self.base_url}/api/menu/reservation/selectReserveMenuList.do"
+        payload = {
+            "prvdDt": prvd_dt,
+            "bizplcCd": bizplc_cd,
+            "clcoMvicoYn": "Y",
+            "reseFgCd": "3",
+        }
+        response = self.session.post(
+            url,
+            data=json.dumps(payload),
+            headers=self._json_headers(),
+            timeout=self.timeout,
+            verify=False,
+        )
+        return self._wrap_response(response)
+
+    def fetch_delivery_info_type_list(self, payload_template: Dict[str, Any], coner_dv_cd: str, prvd_dt: str) -> ApiCallResult:
+        url = f"{self.base_url}/api/menu/reservation/selectDeliveryInfoTypeList.do"
+        payload = {
+            "conerDvCd": coner_dv_cd,
+            "mealDvCd": "0002", # Assuming lunch
+            "bizbrCd": payload_template.get("bizbrCd", "50856"), # Default or from payload
+            "bizplcCd": payload_template.get("bizplcCd", "196274"),
+            "prvdDt": prvd_dt,
+        }
         response = self.session.post(
             url,
             data=json.dumps(payload),

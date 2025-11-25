@@ -15,17 +15,33 @@ export default function DashboardScreen({ user, onLogout }) {
         setLoading(true);
         setMessage(null);
         try {
-            const tomorrow = new Date();
+            const today = new Date();
+            const tomorrow = new Date(today);
             tomorrow.setDate(tomorrow.getDate() + 1);
-            const targetDate = tomorrow.toISOString().split('T')[0];
-
-            const data = await api.checkReservation(user.userId, targetDate);
             
-            if (data.hasReservation && data.reservations.length > 0) {
-                setReservations(data.reservations);
-            } else {
-                setReservations([]);
+            // If tomorrow is Saturday (6), next business day is Monday (+2 = 8)
+            // If tomorrow is Sunday (0), next business day is Monday (+1 = 1)
+            // But let's just stick to "next day" for now, or maybe the API handles it?
+            // The user said "today and tomorrow".
+            // Let's fetch both.
+            
+            const todayStr = today.toISOString().split('T')[0];
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+            const [todayData, tomorrowData] = await Promise.all([
+                api.checkReservation(user.userId, todayStr),
+                api.checkReservation(user.userId, tomorrowStr)
+            ]);
+            
+            const newReservations = [];
+            if (todayData.hasReservation && todayData.reservations.length > 0) {
+                newReservations.push(...todayData.reservations.map(r => ({...r, label: '오늘'})));
             }
+            if (tomorrowData.hasReservation && tomorrowData.reservations.length > 0) {
+                newReservations.push(...tomorrowData.reservations.map(r => ({...r, label: '내일'})));
+            }
+            
+            setReservations(newReservations);
         } catch (error) {
             console.error('Check reservation error:', error);
             setMessage({ text: '예약 정보를 불러올 수 없습니다', type: 'error' });
@@ -116,6 +132,7 @@ export default function DashboardScreen({ user, onLogout }) {
             </div>
 
             {/* Auto-Reservation Toggle */}
+            {/* Auto-Reservation Toggle */}
             <div style={{ 
                 marginBottom: '20px', 
                 padding: '15px', 
@@ -181,54 +198,56 @@ export default function DashboardScreen({ user, onLogout }) {
                 </div>
             )}
             
-            <div id="reservationList">
-                {loading ? (
-                    <div className="loading">
-                        <div className="spinner"></div>
-                    </div>
-                ) : reservations.length > 0 ? (
-                    reservations.map((r, index) => (
-                        <div key={index} className="reservation-card">
-                            <h3>{r.dispNm || '예약됨'}</h3>
-                            <div className="reservation-detail">
-                                <span>날짜</span>
-                                <span>{r.prvdDt ? r.prvdDt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '내일'}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3 style={{ margin: 0 }}>예약 현황</h3>
+            </div>
+
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>로딩 중...</div>
+            ) : reservations.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+                    {reservations.map((res, index) => (
+                        <div key={index} style={{ 
+                            padding: '15px', 
+                            border: '1px solid #eee', 
+                            borderRadius: '8px',
+                            background: '#fff',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                        }}>
+                            <div style={{ 
+                                display: 'inline-block', 
+                                padding: '2px 8px', 
+                                borderRadius: '12px', 
+                                background: res.label === '오늘' ? '#e3f2fd' : '#f3e5f5',
+                                color: res.label === '오늘' ? '#1976d2' : '#7b1fa2',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                marginBottom: '8px'
+                            }}>
+                                {res.label} ({res.prvdDt ? res.prvdDt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : ''})
                             </div>
-                            <div className="reservation-detail">
-                                <span>코너</span>
-                                <span>{r.conerNm || '알 수 없음'}</span>
+                            <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '5px' }}>
+                                {res.dispNm}
                             </div>
-                            <div className="reservation-detail">
-                                <span>상태</span>
-                                <span style={{ color: '#28a745' }}>✓ 예약 완료</span>
+                            <div style={{ color: '#666', fontSize: '14px' }}>
+                                {res.conerNm}
                             </div>
                         </div>
-                    ))
-                ) : (
-                    <div className="message" style={{ textAlign: 'center', padding: '30px' }}>
-                        <p style={{ fontSize: '48px', marginBottom: '10px' }}>📅</p>
-                        <p style={{ color: '#666' }}>예약 대기 중입니다</p>
-                        {autoReservationEnabled && (
-                            <p style={{ color: '#999', fontSize: '12px', marginTop: '5px' }}>매일 13:00에 자동으로 예약됩니다</p>
-                        )}
-                        <button 
-                            onClick={handleImmediateReservation} 
-                            disabled={immediateLoading}
-                            style={{ 
-                                marginTop: '15px', 
-                                background: '#ff9800',
-                                opacity: immediateLoading ? 0.6 : 1
-                            }}
-                        >
-                            {immediateLoading ? '예약 중...' : '지금 바로 예약하기'}
-                        </button>
-                    </div>
-                )}
-            </div>
+                    ))}
+                </div>
+            ) : (
+                <div style={{ 
+                    padding: '30px', 
+                    textAlign: 'center', 
+                    background: '#f8f9fa', 
+                    borderRadius: '8px',
+                    color: '#666' 
+                }}>
+                    예약 내역이 없습니다
+                </div>
+            )}
             
-            <button onClick={checkReservation} disabled={loading} style={{ marginTop: '20px' }}>
-                예약 새로고침
-            </button>
+            {/* Refresh button removed */}
             <button 
                 onClick={() => setShowSettings(true)} 
                 style={{ 
