@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import boto3
+import pytz
 from typing import Any, Dict
 from datetime import datetime, timedelta
 from core import ConfigStore, ReservationClient
@@ -57,12 +58,13 @@ def check_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
             return _response(500, {"message": "Master password not configured"})
         
         LOGGER.info("Step 4: Parsing target date")
-        # Get target date (default: tomorrow)
+        # Get target date (default: tomorrow in KST)
         target_date_str = payload.get("targetDate")
         if target_date_str:
             target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
         else:
-            target_date = (datetime.now() + timedelta(days=1)).date()
+            kst = pytz.timezone('Asia/Seoul')
+            target_date = (datetime.now(kst) + timedelta(days=1)).date()
         LOGGER.info("Target date: %s", target_date)
         
         LOGGER.info("Step 5: Loading user preferences")

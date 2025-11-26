@@ -11,22 +11,30 @@ export default function DashboardScreen({ user, onLogout }) {
     const [immediateLoading, setImmediateLoading] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
 
+    // 한국 시간 기준 날짜 계산 (offset: 일 단위)
+    const getKoreanDate = (offset = 0) => {
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const kst = new Date(utc + (9 * 60 * 60 * 1000));
+        kst.setDate(kst.getDate() + offset);
+        return kst.toISOString().split('T')[0];
+    };
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return '';
+        // YYYYMMDD -> YYYY-MM-DD
+        if (dateStr.length === 8) {
+            return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+        }
+        return dateStr;
+    };
+
     const checkReservation = async () => {
         setLoading(true);
         setMessage(null);
         try {
-            const today = new Date();
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            
-            // If tomorrow is Saturday (6), next business day is Monday (+2 = 8)
-            // If tomorrow is Sunday (0), next business day is Monday (+1 = 1)
-            // But let's just stick to "next day" for now, or maybe the API handles it?
-            // The user said "today and tomorrow".
-            // Let's fetch both.
-            
-            const todayStr = today.toISOString().split('T')[0];
-            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            const todayStr = getKoreanDate(0);
+            const tomorrowStr = getKoreanDate(1);
 
             const [todayData, tomorrowData] = await Promise.all([
                 api.checkReservation(user.userId, todayStr),
@@ -35,10 +43,16 @@ export default function DashboardScreen({ user, onLogout }) {
             
             const newReservations = [];
             if (todayData.hasReservation && todayData.reservations.length > 0) {
-                newReservations.push(...todayData.reservations.map(r => ({...r, label: '오늘'})));
+                newReservations.push(...todayData.reservations.map(r => ({
+                    ...r, 
+                    label: formatDate(r.prvdDt) === todayStr ? '오늘' : '예약됨'
+                })));
             }
             if (tomorrowData.hasReservation && tomorrowData.reservations.length > 0) {
-                newReservations.push(...tomorrowData.reservations.map(r => ({...r, label: '내일'})));
+                newReservations.push(...tomorrowData.reservations.map(r => ({
+                    ...r, 
+                    label: formatDate(r.prvdDt) === tomorrowStr ? '내일' : '예약됨'
+                })));
             }
             
             setReservations(newReservations);
@@ -70,7 +84,7 @@ export default function DashboardScreen({ user, onLogout }) {
     };
 
     const handleImmediateReservation = async () => {
-        if (!confirm('지금 바로 예약을 진행하시겠습니까?')) {
+        if (!confirm('지금 바로 예약을 진행하시겠습니까?\n(다음 평일 예약이 시도됩니다)')) {
             return;
         }
         
@@ -224,7 +238,7 @@ export default function DashboardScreen({ user, onLogout }) {
                                 fontWeight: 600,
                                 marginBottom: '8px'
                             }}>
-                                {res.label} ({res.prvdDt ? res.prvdDt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : ''})
+                                {res.label} ({formatDate(res.prvdDt)})
                             </div>
                             <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '5px' }}>
                                 {res.dispNm}
@@ -247,7 +261,21 @@ export default function DashboardScreen({ user, onLogout }) {
                 </div>
             )}
             
-            {/* Refresh button removed */}
+            {/* Immediate Reservation Button */}
+            <button 
+                onClick={handleImmediateReservation}
+                disabled={loading || immediateLoading}
+                style={{ 
+                    marginTop: '20px', 
+                    background: '#28a745',
+                    width: '100%',
+                    opacity: (loading || immediateLoading) ? 0.6 : 1,
+                    cursor: (loading || immediateLoading) ? 'not-allowed' : 'pointer'
+                }}
+            >
+                {immediateLoading ? '예약 진행 중...' : '즉시 예약 (다음 평일)'}
+            </button>
+
             <button 
                 onClick={() => setShowSettings(true)} 
                 style={{ 

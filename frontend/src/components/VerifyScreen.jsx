@@ -44,7 +44,9 @@ export default function VerifyScreen({ email, deviceFingerprint, onVerified, onB
                     onChange={(e) => setCode(e.target.value)}
                     required 
                 />
-                <div className="help-text">이메일로 받은 6자리 코드를 입력하세요. (스팸함도 확인하세요. 10초 내로 발송 완료 됩니다.)</div>
+                <div className="help-text">이메일로 받은 6자리 코드를 입력하세요. </div>
+                <div className="help-text">10초 이내로 발송됩니다.</div>
+                <div className="help-text">발송자 주소 i@nz.pe.kr</div>
             </div>
             <button onClick={handleVerify} disabled={loading}>
                 {loading ? '처리 중...' : '인증 확인'}
