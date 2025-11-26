@@ -262,19 +262,21 @@ export default function DashboardScreen({ user, onLogout }) {
             )}
             
             {/* Immediate Reservation Button */}
-            <button 
-                onClick={handleImmediateReservation}
-                disabled={loading || immediateLoading}
-                style={{ 
-                    marginTop: '20px', 
-                    background: '#28a745',
-                    width: '100%',
-                    opacity: (loading || immediateLoading) ? 0.6 : 1,
-                    cursor: (loading || immediateLoading) ? 'not-allowed' : 'pointer'
-                }}
-            >
-                {immediateLoading ? '예약 진행 중...' : '즉시 예약 (다음 평일)'}
-            </button>
+            {!reservations.some(r => r.label === '내일') && (
+                <button 
+                    onClick={handleImmediateReservation}
+                    disabled={loading || immediateLoading}
+                    style={{ 
+                        marginTop: '20px', 
+                        background: '#28a745',
+                        width: '100%',
+                        opacity: (loading || immediateLoading) ? 0.6 : 1,
+                        cursor: (loading || immediateLoading) ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    {immediateLoading ? '예약 진행 중...' : '즉시 예약 (다음 평일)'}
+                </button>
+            )}
 
             <button 
                 onClick={() => setShowSettings(true)} 
