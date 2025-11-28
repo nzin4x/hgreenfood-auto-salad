@@ -86,6 +86,21 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
             }]
         else:
             LOGGER.info("No device fingerprint provided")
+        
+        LOGGER.info("Step 6: Building DynamoDB item")
+        item = {
+            "PK": f"USER#{user_id}",
+            "SK": "PROFILE",
+            "userId": user_id,
+            "userData_encrypted": encrypted_password,
+            "pin_encrypted": encrypted_pin,
+            "menuSeq": menu_seq,
+            "floorNm": floor_nm,
+            "email": email,
+            "notificationEmails": [email],  # Enable reservation notifications by default
+            "devices": devices,
+            "_salt": salt,  # Kept for schema compatibility, though KMS doesn't use it for decryption
+        }
         LOGGER.info("Item built with keys: %s", list(item.keys()))
         
         LOGGER.info("Step 7: Initializing ConfigStore")

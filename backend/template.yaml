@@ -38,7 +38,7 @@ Globals:
         DEFAULT_TIMEZONE: !Ref DefaultTimezone
         MASTER_PASSWORD_SSM_PARAM: !Ref MasterPasswordSsmParam
         HOLIDAY_API_KEY: !Ref HolidayApiKey
-        KMS_KEY_ID: ea6e74bf-4189-4c2f-b798-35b7e0461d67
+        KMS_KEY_ID: !Ref HGreenFoodKmsKey
         MAX_USERS: !Ref MaxUsers
     Tracing: Active
   Api:
@@ -48,6 +48,39 @@ Globals:
       AllowOrigin: "'*'"
 
 Resources:
+  HGreenFoodKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: KMS key for encrypting HGreenFood user credentials
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow use of the key for Lambda functions
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - 'kms:Decrypt'
+              - 'kms:Encrypt'
+              - 'kms:DescribeKey'
+              - 'kms:GenerateDataKey'
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'kms:ViaService': !Sub 'lambda.${AWS::Region}.amazonaws.com'
+
+  HGreenFoodKmsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/hgreenfood-key
+      TargetKeyId: !Ref HGreenFoodKmsKey
+
   HGreenFoodTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -80,7 +113,7 @@ Resources:
               Action:
                 - kms:Encrypt
                 - kms:Decrypt
-              Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/ea6e74bf-4189-4c2f-b798-35b7e0461d67"
+              Resource: !GetAtt HGreenFoodKmsKey.Arn
         - Statement:
             - Effect: Allow
               Action:
@@ -182,7 +215,7 @@ Resources:
               Action:
                 - kms:Encrypt
                 - kms:Decrypt
-              Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/ea6e74bf-4189-4c2f-b798-35b7e0461d67"
+              Resource: !GetAtt HGreenFoodKmsKey.Arn
         - Statement:
             - Effect: Allow
               Action:
@@ -219,7 +252,7 @@ Resources:
               Action:
                 - kms:Encrypt
                 - kms:Decrypt
-              Resource: !Sub "arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/ea6e74bf-4189-4c2f-b798-35b7e0461d67"
+              Resource: !GetAtt HGreenFoodKmsKey.Arn
         - Statement:
             - Effect: Allow
               Action:
@@ -261,4 +294,10 @@ Outputs:
   DynamoTableName:
     Description: DynamoDB table name
     Value: !Ref HGreenFoodTable
+  KmsKeyId:
+    Description: KMS Key ID for encryption
+    Value: !Ref HGreenFoodKmsKey
+  KmsKeyAlias:
+    Description: KMS Key Alias
+    Value: !Ref HGreenFoodKmsKeyAlias
 
