@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import MenuPreferenceSelector from './MenuPreferenceSelector';
 
@@ -11,6 +11,19 @@ export default function SetupScreen({ email, deviceFingerprint, onRegistered }) 
     });
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState(null);
+    const [regStatus, setRegStatus] = useState({ count: 0, limit: 10, isFull: false });
+
+    useEffect(() => {
+        const fetchStatus = async () => {
+            try {
+                const status = await api.getRegistrationStatus();
+                setRegStatus(status);
+            } catch (error) {
+                console.error('Failed to fetch registration status:', error);
+            }
+        };
+        fetchStatus();
+    }, []);
 
     const handleChange = (e) => {
         setFormData({
@@ -31,6 +44,11 @@ export default function SetupScreen({ email, deviceFingerprint, onRegistered }) 
 
         if (!userId || !password || !menuSeq || !floorNm) {
             setMessage({ text: '모든 필드를 입력하세요', type: 'error' });
+            return;
+        }
+
+        if (regStatus.isFull) {
+            setMessage({ text: `등록 한도 초과 (${regStatus.count}/${regStatus.limit})`, type: 'error' });
             return;
         }
 
@@ -55,6 +73,19 @@ export default function SetupScreen({ email, deviceFingerprint, onRegistered }) 
         <div>
             <h2 style={{ marginBottom: '20px', color: '#667eea' }}>계정 설정</h2>
             
+            <div style={{ 
+                marginBottom: '20px', 
+                padding: '10px', 
+                backgroundColor: regStatus.isFull ? '#ffebee' : '#e8f5e9',
+                borderRadius: '4px',
+                textAlign: 'center',
+                color: regStatus.isFull ? '#c62828' : '#2e7d32',
+                fontWeight: 'bold'
+            }}>
+                현재 가입자: {regStatus.count} / {regStatus.limit} 명
+                {regStatus.isFull && <div>(가입 마감)</div>}
+            </div>
+
             {message && (
                 <div className={`message ${message.type}`}>
                     {message.text}
@@ -84,7 +115,7 @@ export default function SetupScreen({ email, deviceFingerprint, onRegistered }) 
                 />
             </div>
             
-            <button onClick={handleRegister} disabled={loading}>
+            <button onClick={handleRegister} disabled={loading || regStatus.isFull}>
                 {loading ? '처리 중...' : '등록 완료'}
             </button>
         </div>

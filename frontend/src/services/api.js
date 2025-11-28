@@ -53,7 +53,7 @@ export const api = {
         return response.json();
     },
 
-    checkReservation: async (userId, targetDate) => {
+    async checkReservation(userId, targetDate) {
         const response = await fetch(`${API_BASE_URL}/check-reservation`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},

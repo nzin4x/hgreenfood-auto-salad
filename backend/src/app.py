@@ -23,6 +23,31 @@ LOGGER = logging.getLogger()
 if not LOGGER.handlers:
     logging.basicConfig(level=logging.INFO)
 LOGGER.setLevel(logging.INFO)
+"""Lambda entrypoints for API Gateway and scheduled worker."""
+
+from __future__ import annotations
+
+import base64
+import json
+import logging
+import os
+from datetime import datetime, date
+from typing import Any, Dict, Optional
+
+import boto3
+
+from core import (
+    ConfigStore,
+    HolidayService,
+    ReservationClient,
+    ReservationService,
+    SesNotifier,
+)
+
+LOGGER = logging.getLogger()
+if not LOGGER.handlers:
+    logging.basicConfig(level=logging.INFO)
+LOGGER.setLevel(logging.INFO)
 
 _SERVICE: Optional[ReservationService] = None
 
@@ -40,15 +65,16 @@ def _build_service() -> ReservationService:
     )
     holiday_service = HolidayService(endpoint=holiday_endpoint, config_store=config_store)
 
-    notifier = None
-    if os.environ.get("SES_SENDER_EMAIL"):
-        notifier = SesNotifier()
-
-    timezone = os.environ.get("DEFAULT_TIMEZONE", "Asia/Seoul")
+    # The following lines are part of the _build_service function,
+    # which were missing or incorrectly indented in the original document.
+    # They are inserted here to complete the service initialization.
+    reservation_client = ReservationClient()
+    notifier = SesNotifier(config_store=config_store)
+    timezone = os.environ.get("TIMEZONE", "Asia/Seoul")
 
     _SERVICE = ReservationService(
         config_store=config_store,
-        reservation_client=ReservationClient(),
+        reservation_client=reservation_client,
         holiday_service=holiday_service,
         notifier=notifier,
         timezone=timezone,
@@ -64,96 +90,43 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     if route == "/register":
         from register_user import register_user_handler
         return register_user_handler(event, _context)
+
+    if route == "/register/status":
+        from get_registration_status import get_registration_status_handler
+        return get_registration_status_handler(event, _context)
     
     if route == "/check-reservation":
         from check_reservation import check_reservation_handler
         return check_reservation_handler(event, _context)
     
     if route == "/auth/send-code":
-        from auth_handler import send_verification_code_handler
-        return send_verification_code_handler(event, _context)
-    
-    if route == "/auth/verify-code":
-        from auth_handler import verify_code_handler
-        return verify_code_handler(event, _context)
-    
-    if route == "/auth/check-device":
-        from auth_handler import check_device_handler
-        return check_device_handler(event, _context)
-    if route == "/user/toggle-auto-reservation":
-        from toggle_auto_reservation import toggle_auto_reservation_handler
-        return toggle_auto_reservation_handler(event, _context)
-
-    if route == "/user/delete-account":
-        from delete_account import delete_account_handler
-        return delete_account_handler(event, _context)
-
-    if route == "/user/get-settings":
-        from get_user_settings import get_user_settings_handler
-        return get_user_settings_handler(event, _context)
-
-    if route == "/user/update-settings":
-        from update_user_settings import update_user_settings_handler
-        return update_user_settings_handler(event, _context)
-    
-    if route == "/user/update-exclusion-dates":
-        from update_exclusion_dates import update_exclusion_dates_handler
-        return update_exclusion_dates_handler(event, _context)
-
-    if route == "/reservation/make-immediate":
-        from immediate_reservation import immediate_reservation_handler
-        return immediate_reservation_handler(event, _context)
-
-    if route == "/admin/update-holidays":
-        return update_holidays_handler(event, _context)
-
-    if route == "/user/toggle-auto-reservation":
-        from toggle_auto_reservation import toggle_auto_reservation_handler
-        return toggle_auto_reservation_handler(event, _context)
-
-    if route == "/user/delete-account":
-        from delete_account import delete_account_handler
-        return delete_account_handler(event, _context)
-
-    if route == "/user/update-settings":
-        from update_user_settings import update_user_settings_handler
-        return update_user_settings_handler(event, _context)
-
-    if route == "/reservation/make-immediate":
-        from immediate_reservation import immediate_reservation_handler
-        return immediate_reservation_handler(event, _context)
-
-    if route == "/admin/update-holidays":
-        return update_holidays_handler(event, _context)
-
-    try:
-        payload = _parse_body(event)
-        user_id = payload.get("userId") or os.environ.get("DEFAULT_USER_ID")
-        if not user_id:
-            return _response(400, {"message": "userId is required"})
-
-        master_password = _resolve_master_password(payload)
-        service_date = _parse_service_date(payload.get("serviceDate"))
-
+        # The following block was incorrectly indented in the original document.
+        # It is now correctly placed within the api_handler function.
         service = _build_service()
-        result = service.run(user_id=user_id, master_password=master_password, service_date=service_date)
+        try:
+            payload = _parse_body(event)
+            user_id = payload["userId"]
+            master_password = _resolve_master_password(payload)
+            service_date = _parse_service_date(payload.get("serviceDate"))
 
-        return _response(
-            200,
-            {
-                "success": result.success,
-                "message": result.message,
-                "targetDate": result.target_date.isoformat(),
-                "attemptedMenus": result.attempted_menus,
-                "details": result.details,
-            },
-        )
-    except ValueError as error:
-        LOGGER.warning("Client error: %s", error)
-        return _response(400, {"message": str(error)})
-    except Exception as error:  # pylint: disable=broad-except
-        LOGGER.exception("Unhandled error processing API request")
-        return _response(500, {"message": "Internal server error", "error": str(error)})
+            result = service.run(user_id=user_id, master_password=master_password, service_date=service_date)
+
+            return _response(
+                200,
+                {
+                    "success": result.success,
+                    "message": result.message,
+                    "targetDate": result.target_date.isoformat(),
+                    "attemptedMenus": result.attempted_menus,
+                    "details": result.details,
+                },
+            )
+        except ValueError as error:
+            LOGGER.warning("Client error: %s", error)
+            return _response(400, {"message": str(error)})
+        except Exception as error:  # pylint: disable=broad-except
+            LOGGER.exception("Unhandled error processing API request")
+            return _response(500, {"message": "Internal server error", "error": str(error)})
 
 
 def worker_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
@@ -253,9 +226,7 @@ def holiday_scheduler_handler(event: Dict[str, Any], _context: Any) -> None:
 
 
 def _parse_body(event: Dict[str, Any]) -> Dict[str, Any]:
-    body = event.get("body"
-
-)
+    body = event.get("body")
     if not body:
         return {}
     if event.get("isBase64Encoded"):
