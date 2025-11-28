@@ -35,6 +35,7 @@ export default function DashboardScreen({ user, onLogout }) {
         try {
             const todayStr = getKoreanDate(0);
             const tomorrowStr = getKoreanDate(1);
+            console.log('Date Debug:', { todayStr, tomorrowStr, now: new Date().toISOString() });
 
             const [todayData, tomorrowData] = await Promise.all([
                 api.checkReservation(user.userId, todayStr),
@@ -221,32 +222,50 @@ export default function DashboardScreen({ user, onLogout }) {
             ) : reservations.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
                     {reservations.map((res, index) => (
-                        <div key={index} style={{ 
-                            padding: '15px', 
-                            border: '1px solid #eee', 
-                            borderRadius: '8px',
-                            background: '#fff',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                        }}>
+                        <a 
+                            key={index} 
+                            href="https://hcafe.hgreenfood.com/ctf/menu/reservation/menuReservation.do"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                        >
                             <div style={{ 
-                                display: 'inline-block', 
-                                padding: '2px 8px', 
-                                borderRadius: '12px', 
-                                background: res.label === '오늘' ? '#e3f2fd' : '#f3e5f5',
-                                color: res.label === '오늘' ? '#1976d2' : '#7b1fa2',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                marginBottom: '8px'
-                            }}>
-                                {res.label} ({formatDate(res.prvdDt)})
+                                padding: '15px', 
+                                border: '1px solid #eee', 
+                                borderRadius: '8px',
+                                background: '#fff',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                                transition: 'transform 0.2s, box-shadow 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                            }}
+                            >
+                                <div style={{ 
+                                    display: 'inline-block', 
+                                    padding: '2px 8px', 
+                                    borderRadius: '12px', 
+                                    background: res.label === '오늘' ? '#e3f2fd' : '#f3e5f5',
+                                    color: res.label === '오늘' ? '#1976d2' : '#7b1fa2',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    marginBottom: '8px'
+                                }}>
+                                    {res.label} ({formatDate(res.prvdDt)})
+                                </div>
+                                <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '5px' }}>
+                                    {res.dispNm}
+                                </div>
+                                <div style={{ color: '#666', fontSize: '14px' }}>
+                                    {res.conerNm}
+                                </div>
                             </div>
-                            <div style={{ fontWeight: 600, fontSize: '16px', marginBottom: '5px' }}>
-                                {res.dispNm}
-                            </div>
-                            <div style={{ color: '#666', fontSize: '14px' }}>
-                                {res.conerNm}
-                            </div>
-                        </div>
+                        </a>
                     ))}
                 </div>
             ) : (

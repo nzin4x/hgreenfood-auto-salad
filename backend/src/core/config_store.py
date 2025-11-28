@@ -10,7 +10,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 import yaml
 
-from .crypto import decrypt
+from .crypto import decrypt, encrypt
 from .models import UserPreferences
 
 
@@ -71,20 +71,20 @@ class ConfigStore:
                 return {**FALLBACK_DEFAULTS, **loaded}
         return dict(FALLBACK_DEFAULTS)
 
-    def get_user_preferences(self, user_id: str, master_password: str) -> UserPreferences:
+    def get_user_preferences(self, user_id: str) -> UserPreferences:
         item = self._fetch_profile_item(user_id)
         if not item:
             raise KeyError(f"Profile not found for user {user_id}")
 
-        return self._build_preferences(item, master_password, user_id)
+        return self._build_preferences(item, user_id)
 
-    def _build_preferences(self, item: Dict[str, Any], master_password: str, user_id: str) -> UserPreferences:
-        password = self._decrypt_secret(item, "userData_encrypted", master_password)
+    def _build_preferences(self, item: Dict[str, Any], user_id: str) -> UserPreferences:
+        password = self._decrypt_secret(item, "userData_encrypted")
         menu_seq = item.get("menuSeq", "").split(",")
         menu_sequence = [entry.strip() for entry in menu_seq if entry.strip()]
         floor_name = item.get("floorNm") or item.get("floor_name")
         payload = self._build_payload(item)
-        holiday_api_key = self._extract_holiday_api_key(item, master_password)
+        holiday_api_key = self._extract_holiday_api_key(item)
         timezone = item.get("timezone") or os.environ.get("DEFAULT_TIMEZONE", "Asia/Seoul")
         notifications = item.get("notificationEmails") or item.get("notifications") or []
         if isinstance(notifications, str):
@@ -143,16 +143,14 @@ class ConfigStore:
         payload.setdefault("mobiPhTrmlId", item.get("mobiPhTrmlId", ""))
         return payload
 
-    def _decrypt_secret(self, item: Dict[str, Any], key: str, master_password: str) -> str:
+    def _decrypt_secret(self, item: Dict[str, Any], key: str) -> str:
         encrypted = item.get(key)
         if not encrypted:
             raise KeyError(f"Missing encrypted payload '{key}'")
-        salt = item.get("_salt") or item.get("salt")
-        if not salt:
-            raise KeyError("Missing salt for encrypted payload")
-        return decrypt(encrypted, master_password, salt)
+        # Salt is no longer used for decryption with KMS but might be present in legacy items
+        return decrypt(encrypted)
 
-    def _extract_holiday_api_key(self, item: Dict[str, Any], master_password: str) -> Optional[str]:
+    def _extract_holiday_api_key(self, item: Dict[str, Any]) -> Optional[str]:
         holiday_node = (
             item.get("data.go.kr", {})
             .get("api", {})
@@ -160,10 +158,7 @@ class ConfigStore:
         encrypted_key = holiday_node.get("key_encrypted") or item.get("holidayApiKey_encrypted")
         if not encrypted_key:
             return None
-        holiday_salt = holiday_node.get("salt") or holiday_node.get("_salt") or item.get("holidayApiKey_salt")
-        if not holiday_salt:
-            holiday_salt = item.get("_salt") or item.get("salt")
-        return decrypt(encrypted_key, master_password, holiday_salt)
+        return decrypt(encrypted_key)
 
     # Convenience helpers for potential future writes ---------------------
 
@@ -282,7 +277,7 @@ class ConfigStore:
             raise RuntimeError(f"Failed to delete profile for {user_id}: {error}") from error
 
     def update_user_settings(self, user_id: str, menu_sequence: list = None, floor_name: str = None, 
-                            hg_user_id: str = None, hg_user_pw: str = None, master_password: str = None) -> None:
+                            hg_user_id: str = None, hg_user_pw: str = None) -> None:
         """Update user settings (menu sequence, floor, and optionally HGreen credentials)"""
         import logging
         logger = logging.getLogger()
@@ -310,11 +305,7 @@ class ConfigStore:
         
         # Update HGreen password if provided (encrypt it)
         if hg_user_pw is not None:
-            if not master_password:
-                logger.error("Master password required to encrypt HGreen password")
-                raise ValueError("Master password is required to update HGreen password")
-            
-            encrypted_pw = self._encrypt(hg_user_pw, master_password)
+            encrypted_pw, _ = encrypt(hg_user_pw)
             update_parts.append("hgUserPw = :hgUserPw")
             attr_values[":hgUserPw"] = encrypted_pw
         

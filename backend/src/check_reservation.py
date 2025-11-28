@@ -37,27 +37,7 @@ def check_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
             return _response(400, {"message": "userId is required"})
         LOGGER.info("User ID: %s", user_id)
         
-        LOGGER.info("Step 3: Retrieving master password from SSM")
-        # Get master password from SSM
-        master_password = os.environ.get("MASTER_PASSWORD")
-        if not master_password:
-            ssm_param = os.environ.get("MASTER_PASSWORD_SSM_PARAM")
-            if ssm_param:
-                try:
-                    LOGGER.info("Fetching master password from SSM: %s", ssm_param)
-                    ssm_client = boto3.client("ssm")
-                    response = ssm_client.get_parameter(Name=ssm_param, WithDecryption=True)
-                    master_password = response["Parameter"]["Value"]
-                    LOGGER.info("Successfully retrieved master password from SSM")
-                except Exception as e:
-                    LOGGER.error("Failed to fetch master password from SSM: %s", str(e), exc_info=True)
-                    return _response(500, {"message": f"Failed to fetch master password: {str(e)}"})
-        
-        if not master_password:
-            LOGGER.error("Master password not configured")
-            return _response(500, {"message": "Master password not configured"})
-        
-        LOGGER.info("Step 4: Parsing target date")
+        LOGGER.info("Step 3: Parsing target date")
         # Get target date (default: tomorrow in KST)
         target_date_str = payload.get("targetDate")
         if target_date_str:
@@ -67,13 +47,14 @@ def check_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
             target_date = (datetime.now(kst) + timedelta(days=1)).date()
         LOGGER.info("Target date: %s", target_date)
         
-        LOGGER.info("Step 5: Loading user preferences")
+        LOGGER.info("Step 4: Loading user preferences")
         # Load user preferences
         config_store = ConfigStore()
-        preferences = config_store.get_user_preferences(user_id, master_password)
+        # No master password needed with KMS
+        preferences = config_store.get_user_preferences(user_id)
         LOGGER.info("User preferences loaded successfully")
         
-        LOGGER.info("Step 6: Creating reservation client and logging in")
+        LOGGER.info("Step 5: Creating reservation client and logging in")
         # Check reservation status
         client = ReservationClient()
         
@@ -92,7 +73,7 @@ def check_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
             })
         LOGGER.info("Login successful")
         
-        LOGGER.info("Step 7: Checking existing reservations")
+        LOGGER.info("Step 6: Checking existing reservations")
         # Check existing reservations
         prvd_dt = target_date.strftime("%Y%m%d")
         reservations = client.check_existing_reservations(preferences.raw_payload, prvd_dt)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import ExclusionCalendar from './ExclusionCalendar';
+import MenuPreferenceSelector from './MenuPreferenceSelector';
 
 export default function SettingsModal({ user, onClose, onSaved }) {
     const [menuSeq, setMenuSeq] = useState('샐,샌,빵');
@@ -101,38 +102,12 @@ export default function SettingsModal({ user, onClose, onSaved }) {
 
                 <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 600, color: '#333' }}>
-                        메뉴 선호 순서
+                        메뉴 선호 순서 (드래그하여 순서 변경)
                     </label>
-                    <input
-                        type="text"
+                    <MenuPreferenceSelector 
                         value={menuSeq}
-                        onChange={(e) => setMenuSeq(e.target.value)}
-                        placeholder="예: 샌,샐,빵"
-                        style={{
-                            width: '100%',
-                            padding: '12px',
-                            border: '2px solid #e0e0e0',
-                            borderRadius: '8px',
-                            fontSize: '14px',
-                            boxSizing: 'border-box'
-                        }}
+                        onChange={setMenuSeq}
                     />
-                    <div style={{ 
-                        marginTop: '8px', 
-                        padding: '10px', 
-                        background: '#f5f5f5', 
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        color: '#666'
-                    }}>
-                        <div style={{ fontWeight: 600, marginBottom: '5px' }}>메뉴 코드:</div>
-                        <div>• 샌 = 샌드위치 (0005)</div>
-                        <div>• 샐 = 샐러드 (0006)</div>
-                        <div>• 빵 = 베이커리 (0007)</div>
-                        <div>• 헬 = 헬시세트 (0009)</div>
-                        <div>• 닭 = 닭가슴살 (0010)</div>
-                        <div style={{ marginTop: '5px', fontStyle: 'italic' }}>쉼표(,)로 구분하세요</div>
-                    </div>
                 </div>
 
                 <div style={{ marginBottom: '20px' }}>

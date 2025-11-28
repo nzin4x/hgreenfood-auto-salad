@@ -30,8 +30,8 @@ class ReservationService:
         self.notifier = notifier
         self.timezone = timezone
 
-    def run(self, user_id: str, master_password: str, service_date: Optional[date] = None) -> ReservationAttempt:
-        preferences = self.config_store.get_user_preferences(user_id, master_password)
+    def run(self, user_id: str, service_date: Optional[date] = None) -> ReservationAttempt:
+        preferences = self.config_store.get_user_preferences(user_id)
         tz_name = preferences.timezone or self.timezone
         tz = pytz.timezone(tz_name)
         holiday_api_key = os.environ.get("HOLIDAY_API_KEY")
@@ -83,6 +83,8 @@ class ReservationService:
             data_sets = menu_list_result.raw.get("dataSets", {})
             available_menus = data_sets.get("reserveList", [])
         else:
+            import logging
+            LOGGER = logging.getLogger()
             LOGGER.warning(f"Failed to fetch menu list: {menu_list_result.error_message}")
 
         attempted = []
@@ -96,6 +98,8 @@ class ReservationService:
             # 1. Find matching menu item from available_menus (fetched earlier)
             menu_item = next((m for m in available_menus if m.get("conerDvCd") == coner_dv_cd), None)
             if not menu_item:
+                import logging
+                LOGGER = logging.getLogger()
                 LOGGER.warning(f"Menu {menu_initial} (code {coner_dv_cd}) not found in available menus")
                 continue
 
@@ -109,17 +113,19 @@ class ReservationService:
                 delivery_info_item = next((d for d in delivery_list if d.get("floorNm") == target_floor), None)
                 
                 if not delivery_info_item:
+                    import logging
+                    LOGGER = logging.getLogger()
                     LOGGER.warning(f"Floor {target_floor} not found in delivery info list. Available: {[d.get('floorNm') for d in delivery_list]}")
-                    # Fallback? Or continue? Let's try to proceed with what we have or skip?
-                    # If floor is critical, we might fail here. But let's try to use the first item if specific floor not found?
-                    # No, user wants specific floor.
-                    # But if user didn't set floor, maybe default?
                     if not target_floor and delivery_list:
                          delivery_info_item = delivery_list[0]
             else:
+                import logging
+                LOGGER = logging.getLogger()
                 LOGGER.warning(f"Failed to fetch delivery info: {delivery_info_result.error_message}")
 
             if not delivery_info_item:
+                 import logging
+                 LOGGER = logging.getLogger()
                  LOGGER.warning("Could not determine delivery info (floor details). Skipping.")
                  continue
 
@@ -181,57 +187,44 @@ class ReservationService:
         if not self.notifier or not preferences.notification_emails:
             return
         
-        # 제목 한글화
-        subject_prefix = "✅" if success else "⚠️"
-        subject = f"{subject_prefix} H.GreenFood {attempt.target_date.isoformat()} [{attempt.details.get('conerNm', '')}] 예약 결과"
+        # Compact Subject
+        weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][attempt.target_date.weekday()]
+        status_str = "성공" if attempt.success else "실패"
         
-        # 본문 구성
-        body_lines = [
-            f"안녕하세요, {preferences.user_id}님",
-            "",
-            f"예약 날짜: {attempt.target_date.isoformat()}",
-            f"예약 결과: {'성공' if attempt.success else '실패'}",
-            f"메시지: {attempt.message}",
-        ]
-        
-        # 예약 상세 정보 추출
+        # If existing reservation, mark as success but maybe note it?
+        # User requested: "Reservation Date / Result / Reserved Menu"
+        menu_name = ""
         if attempt.details:
             menu_name = attempt.details.get("dispNm", "")
-            building = attempt.details.get("dlvrPlcNm", "")
-            floor = attempt.details.get("floorNm", "")
-            corner_name = attempt.details.get("conerNm", "")
             
-            body_lines.append("")
-            body_lines.append("=== 예약 상세 ===")
-            if menu_name:
-                body_lines.append(f"메뉴: {menu_name}")
-            if corner_name:
-                body_lines.append(f"코너: {corner_name}")
-            if building:
-                body_lines.append(f"배달 건물: {building}")
-            if floor:
-                body_lines.append(f"배달 층: {floor}")
+        subject = f"[예약 결과] {attempt.target_date.isoformat()} ({weekday_kr}) - {status_str}"
+        if menu_name:
+            subject += f" - {menu_name}"
         
-        # 선호 메뉴 목록
+        # Compact Body
+        body_lines = [
+            f"예약 날짜: {attempt.target_date.isoformat()} ({weekday_kr})",
+            f"예약 결과: {status_str}",
+        ]
+        
+        if menu_name:
+             body_lines.append(f"예약한 메뉴: {menu_name}")
+        
+        if not attempt.success:
+             body_lines.append(f"메시지: {attempt.message}")
+             
         if attempt.attempted_menus:
-            body_lines.append("")
-            body_lines.append(f"시도한 메뉴 순서: {', '.join(attempt.attempted_menus)}")
-        
-        # 다음 예약 예정일 계산
+             body_lines.append(f"선호 메뉴 순서: {', '.join(attempt.attempted_menus)}")
+
         if success:
-            tz = pytz.timezone(preferences.timezone or self.timezone)
-            holiday_api_key = os.environ.get("HOLIDAY_API_KEY")
-            next_date = self._next_service_date(tz, holiday_api_key)
-            next_date_str = next_date.strftime("%Y년 %m월 %d일")
-            weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][next_date.weekday()]
-            
-            body_lines.append("")
-            body_lines.append(f"다음 예약 예정: {next_date_str} ({weekday_kr}요일) 오후 1시 1분")
-        
-        # HGreenFood 링크
+             # Next reservation
+             tz = pytz.timezone(preferences.timezone or self.timezone)
+             holiday_api_key = os.environ.get("HOLIDAY_API_KEY")
+             next_date = self._next_service_date(tz, holiday_api_key)
+             next_weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][next_date.weekday()]
+             body_lines.append(f"다음 예약 예정: {next_date.strftime('%Y-%m-%d')} ({next_weekday_kr})")
+
         body_lines.append("")
-        body_lines.append("예약 현황 확인: https://hcafe.hgreenfood.com/ctf/menu/reservation/menuReservation.do")
-        body_lines.append("")
-        body_lines.append("감사합니다.")
+        body_lines.append("예약 확인: https://hcafe.hgreenfood.com/ctf/menu/reservation/menuReservation.do")
         
         self.notifier.send(subject, "\n".join(body_lines), preferences.notification_emails)

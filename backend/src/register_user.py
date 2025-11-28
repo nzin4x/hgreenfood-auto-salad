@@ -2,8 +2,10 @@ import os
 import json
 import logging
 import base64
+import secrets
 from typing import Any, Dict
 from core import ConfigStore
+from core.crypto import encrypt
 
 LOGGER = logging.getLogger()
 if not LOGGER.handlers:
@@ -24,7 +26,8 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
         LOGGER.info("Parsed payload: %s", {k: v if k not in ['password', 'pin'] else '***' for k, v in payload.items()})
 
         LOGGER.info("Step 2: Validating required fields")
-        required_fields = ["userId", "password", "pin", "menuSeq", "floorNm", "email"]
+        # PIN is no longer required from user
+        required_fields = ["userId", "password", "menuSeq", "floorNm", "email"]
         missing = [f for f in required_fields if not payload.get(f)]
         if missing:
             LOGGER.warning("Missing required fields: %s", missing)
@@ -39,7 +42,8 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
 
         user_id = payload["userId"]
         password = payload["password"]
-        pin = payload["pin"]
+        # Generate random PIN if not provided (or always, as per user request "Just generate randomly")
+        pin = f"{secrets.randbelow(1000000):06d}"
         menu_seq = payload["menuSeq"]
         floor_nm = payload["floorNm"]
         email = payload["email"]
@@ -58,57 +62,18 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
                 "body": json.dumps({"message": "Invalid email format"})
             }
 
-        LOGGER.info("Step 4: Retrieving master password")
-        from core.crypto import encrypt
-        import boto3
-        
-        master_password = os.environ.get("MASTER_PASSWORD")
-        if not master_password:
-            LOGGER.info("MASTER_PASSWORD env var not set, fetching from SSM")
-            ssm_param = os.environ.get("MASTER_PASSWORD_SSM_PARAM")
-            LOGGER.info("SSM parameter name: %s", ssm_param)
-            if ssm_param:
-                try:
-                    LOGGER.info("Creating SSM client and fetching parameter")
-                    ssm_client = boto3.client("ssm")
-                    response = ssm_client.get_parameter(Name=ssm_param, WithDecryption=True)
-                    master_password = response["Parameter"]["Value"]
-                    LOGGER.info("Successfully retrieved master password from SSM (length: %d)", len(master_password) if master_password else 0)
-                except Exception as e:
-                    LOGGER.error("Failed to fetch master password from SSM: %s", str(e), exc_info=True)
-                    return {
-                        "statusCode": 500,
-                        "headers": {
-                            "Content-Type": "application/json",
-                            "Access-Control-Allow-Origin": "*"
-                        },
-                        "body": json.dumps({"message": f"Failed to fetch master password: {str(e)}"})
-                    }
-            else:
-                LOGGER.error("MASTER_PASSWORD_SSM_PARAM env var is not set")
-        
-        if not master_password:
-            LOGGER.error("Master password is still None after all attempts")
-            return {
-                "statusCode": 500,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*"
-                },
-                "body": json.dumps({"message": "Master password not configured"})
-            }
-        
-        LOGGER.info("Step 5: Encrypting user credentials")
+        LOGGER.info("Step 4: Encrypting user credentials (KMS)")
         try:
-            encrypted_password, salt = encrypt(password, master_password, None)
-            LOGGER.info("Password encrypted successfully, salt length: %d", len(salt) if salt else 0)
-            encrypted_pin, _ = encrypt(pin, master_password, salt)
+            # KMS encryption does not need master password
+            encrypted_password, salt = encrypt(password)
+            LOGGER.info("Password encrypted successfully")
+            encrypted_pin, _ = encrypt(pin)
             LOGGER.info("PIN encrypted successfully")
         except Exception as e:
             LOGGER.error("Encryption failed: %s", str(e), exc_info=True)
             raise
 
-        LOGGER.info("Step 6: Processing device fingerprint")
+        LOGGER.info("Step 5: Processing device fingerprint")
         device_fingerprint = payload.get("deviceFingerprint")
         devices = []
         if device_fingerprint:
@@ -122,7 +87,7 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
         else:
             LOGGER.info("No device fingerprint provided")
         
-        LOGGER.info("Step 7: Building DynamoDB item")
+        LOGGER.info("Step 6: Building DynamoDB item")
         item = {
             "PK": f"USER#{user_id}",
             "SK": "PROFILE",
@@ -134,15 +99,15 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
             "email": email,
             "notificationEmails": [email],  # Enable reservation notifications by default
             "devices": devices,
-            "_salt": salt,
+            "_salt": salt, # Kept for schema compatibility, though KMS doesn't use it for decryption
         }
         LOGGER.info("Item built with keys: %s", list(item.keys()))
         
-        LOGGER.info("Step 8: Initializing ConfigStore")
+        LOGGER.info("Step 7: Initializing ConfigStore")
         config_store = ConfigStore()
         LOGGER.info("ConfigStore initialized, table name: %s", config_store.table_name)
         
-        LOGGER.info("Step 9: Saving profile to DynamoDB")
+        LOGGER.info("Step 8: Saving profile to DynamoDB")
         config_store.save_profile(item)
         LOGGER.info("Profile saved successfully to DynamoDB")
         
