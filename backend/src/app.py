@@ -138,30 +138,13 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
         LOGGER.warning("Client error: %s", error)
         return _response(400, {"message": str(error)})
     except Exception as error:  # pylint: disable=broad-except
-        LOGGER.exception("Unhandled error processing API request")
-        return _response(500, {"message": "Internal server error", "error": str(error)})
-
-
-def worker_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
-    LOGGER.info("Worker event triggered: %s", event.get("detail-type") or event.get("source"))
-    try:
-        master_password = _resolve_master_password(event)
-    except ValueError as error:
-        LOGGER.error("Master password unavailable: %s", error)
-        raise
-
-    service = _build_service()
-    try:
-        user_ids = service.config_store.list_users()
-    except Exception as error:  # pylint: disable=broad-except
-        LOGGER.exception("Failed to list users from configuration store")
         default_user = os.environ.get("DEFAULT_USER_ID")
         user_ids = [default_user] if default_user else []
 
     results = []
     for user_id in user_ids or []:
         try:
-            preferences = service.config_store.get_user_preferences(user_id, master_password)
+            preferences = service.config_store.get_user_preferences(user_id)
             if not preferences.auto_reservation_enabled:
                 LOGGER.info("Auto-reservation disabled for user %s, skipping", user_id)
                 results.append({
@@ -172,7 +155,7 @@ def worker_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
                 })
                 continue
             
-            outcome = service.run(user_id=user_id, master_password=master_password)
+            outcome = service.run(user_id=user_id)
             results.append(
                 {
                     "userId": user_id,

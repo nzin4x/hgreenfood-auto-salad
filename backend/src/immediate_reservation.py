@@ -35,26 +35,7 @@ def immediate_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[
         
         LOGGER.info("User ID: %s", user_id)
         
-        LOGGER.info("Step 3: Retrieving master password from SSM")
-        master_password = os.environ.get("MASTER_PASSWORD")
-        if not master_password:
-            ssm_param = os.environ.get("MASTER_PASSWORD_SSM_PARAM")
-            if ssm_param:
-                try:
-                    LOGGER.info("Fetching master password from SSM: %s", ssm_param)
-                    ssm_client = boto3.client("ssm")
-                    response = ssm_client.get_parameter(Name=ssm_param, WithDecryption=True)
-                    master_password = response["Parameter"]["Value"]
-                    LOGGER.info("Successfully retrieved master password from SSM")
-                except Exception as e:
-                    LOGGER.error("Failed to fetch master password from SSM: %s", str(e), exc_info=True)
-                    return _response(500, {"message": f"Failed to fetch master password: {str(e)}"})
-        
-        if not master_password:
-            LOGGER.error("Master password not configured")
-            return _response(500, {"message": "Master password not configured"})
-        
-        LOGGER.info("Step 4: Building reservation service")
+        LOGGER.info("Step 3: Building reservation service")
         config_store = ConfigStore()
         
         holiday_endpoint = os.environ.get(
@@ -77,9 +58,9 @@ def immediate_reservation_handler(event: Dict[str, Any], _context: Any) -> Dict[
             timezone=timezone,
         )
         
-        LOGGER.info("Step 5: Making immediate reservation")
-        # Make reservation for tomorrow
-        result = service.run(user_id=user_id, master_password=master_password, service_date=None)
+        LOGGER.info("Step 4: Making immediate reservation")
+        # Make reservation for tomorrow (service_date=None means next service date)
+        result = service.run(user_id=user_id, service_date=None)
         
         LOGGER.info("=== IMMEDIATE RESERVATION HANDLER COMPLETED ===")
         return _response(200, {
