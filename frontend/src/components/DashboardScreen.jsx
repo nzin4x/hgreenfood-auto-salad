@@ -29,33 +29,43 @@ export default function DashboardScreen({ user, onLogout }) {
         return dateStr;
     };
 
+    // 한국 시간 기준 13:00 지났는지 판단
+    const isPast1PMKST = () => {
+        const now = new Date();
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const kst = new Date(utc + (9 * 60 * 60 * 1000));
+        return kst.getHours() >= 13;
+    };
+
     const checkReservation = async () => {
         setLoading(true);
         setMessage(null);
         try {
             const todayStr = getKoreanDate(0);
-            const tomorrowStr = getKoreanDate(1);
-            console.log('Date Debug:', { todayStr, tomorrowStr, now: new Date().toISOString() });
+            const data = await api.listReservations(user.userId);
+            const list = (data && data.reserveList) ? data.reserveList : [];
 
-            const [todayData, tomorrowData] = await Promise.all([
-                api.checkReservation(user.userId, todayStr),
-                api.checkReservation(user.userId, tomorrowStr)
-            ]);
-            
+            // 날짜 문자열(YYYY-MM-DD)로 변환
+            const normalize = (d) => formatDate(d);
+
+            const todayItems = list.filter(r => normalize(r.prvdDt) === todayStr);
+
+            // 오늘 이후 날짜들 중 가장 빠른 날짜를 다음 근무일로 간주
+            const futureDates = Array.from(new Set(
+                list.map(r => normalize(r.prvdDt)).filter(d => d > todayStr)
+            )).sort();
+            const nextWorkdayStr = futureDates.length > 0 ? futureDates[0] : null;
+            const nextItems = nextWorkdayStr ? list.filter(r => normalize(r.prvdDt) === nextWorkdayStr) : [];
+
             const newReservations = [];
-            if (todayData.hasReservation && todayData.reservations.length > 0) {
-                newReservations.push(...todayData.reservations.map(r => ({
-                    ...r, 
-                    label: formatDate(r.prvdDt) === todayStr ? '오늘' : '예약됨'
-                })));
+            if (todayItems.length > 0) {
+                // 가장 첫 항목만 카드로 표기
+                newReservations.push({ ...todayItems[0], label: '오늘' });
             }
-            if (tomorrowData.hasReservation && tomorrowData.reservations.length > 0) {
-                newReservations.push(...tomorrowData.reservations.map(r => ({
-                    ...r, 
-                    label: formatDate(r.prvdDt) === tomorrowStr ? '내일' : '예약됨'
-                })));
+            if (nextItems.length > 0 && nextWorkdayStr !== todayStr) {
+                newReservations.push({ ...nextItems[0], label: '다음 근무일' });
             }
-            
+
             setReservations(newReservations);
         } catch (error) {
             console.error('Check reservation error:', error);
@@ -235,7 +245,9 @@ export default function DashboardScreen({ user, onLogout }) {
                                 borderRadius: '8px',
                                 background: '#fff',
                                 boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                transition: 'transform 0.2s, box-shadow 0.2s'
+                                transition: 'transform 0.2s, box-shadow 0.2s',
+                                    opacity: (res.label === '오늘' && isPast1PMKST()) ? 0.5 : 1,
+                                    filter: (res.label === '오늘' && isPast1PMKST()) ? 'grayscale(100%)' : 'none'
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.transform = 'translateY(-2px)';
@@ -281,7 +293,7 @@ export default function DashboardScreen({ user, onLogout }) {
             )}
             
             {/* Immediate Reservation Button */}
-            {!reservations.some(r => r.label === '내일') && (
+            {!reservations.some(r => r.label === '다음 근무일') && (
                 <button 
                     onClick={handleImmediateReservation}
                     disabled={loading || immediateLoading}
@@ -293,7 +305,7 @@ export default function DashboardScreen({ user, onLogout }) {
                         cursor: (loading || immediateLoading) ? 'not-allowed' : 'pointer'
                     }}
                 >
-                    {immediateLoading ? '예약 진행 중...' : '즉시 예약 (다음 평일)'}
+                    {immediateLoading ? '예약 진행 중...' : '즉시 예약 (다음 근무일)'}
                 </button>
             )}
 

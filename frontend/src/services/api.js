@@ -68,6 +68,18 @@ export const api = {
         return response.json();
     },
 
+    async listReservations(userId) {
+        const response = await fetch(`${API_BASE_URL}/reservations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId })
+        });
+        if (!response.ok) {
+            throw new Error('예약 목록 조회 실패');
+        }
+        return response.json();
+    },
+
     toggleAutoReservation: async (userId, enabled) => {
         const response = await fetch(`${API_BASE_URL}/user/toggle-auto-reservation`, {
             method: 'POST',

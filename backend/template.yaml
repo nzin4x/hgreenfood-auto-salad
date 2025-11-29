@@ -150,6 +150,11 @@ Resources:
           Properties:
             Path: /check-reservation
             Method: POST
+        ListReservations:
+          Type: Api
+          Properties:
+            Path: /reservations
+            Method: POST
         SendVerificationCode:
           Type: Api
           Properties:

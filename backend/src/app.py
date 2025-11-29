@@ -72,6 +72,10 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     if route == "/check-reservation":
         from check_reservation import check_reservation_handler
         return check_reservation_handler(event, _context)
+
+    if route == "/reservations":
+        from list_reservations import list_reservations_handler
+        return list_reservations_handler(event, _context)
     
     if route == "/auth/send-code":
         from auth_handler import send_verification_code_handler
