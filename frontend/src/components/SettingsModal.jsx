@@ -50,6 +50,8 @@ export default function SettingsModal({ user, onClose, onSaved }) {
                 hgUserId || undefined,
                 hgUserPw || undefined
             );
+            // Close modal first, then trigger onSaved callback
+            onClose();
             onSaved();
         } catch (err) {
             console.error('Settings update error:', err);
@@ -202,7 +204,7 @@ export default function SettingsModal({ user, onClose, onSaved }) {
                             opacity: saving ? 0.6 : 1
                         }}
                     >
-                        취소
+                        닫기
                     </button>
                     <button
                         onClick={handleSave}

@@ -46,28 +46,9 @@ def update_user_settings_handler(event: Dict[str, Any], _context: Any) -> Dict[s
                     hg_user_id if hg_user_id else "not provided",
                     "***" if hg_user_pw else "not provided")
         
-        LOGGER.info("Step 3: Fetching master password from SSM")
-        master_password = os.environ.get("MASTER_PASSWORD")
-        if not master_password:
-            ssm_param = os.environ.get("MASTER_PASSWORD_SSM_PARAM")
-            if ssm_param:
-                try:
-                    LOGGER.info("Fetching master password from SSM: %s", ssm_param)
-                    ssm_client = boto3.client("ssm")
-                    response = ssm_client.get_parameter(Name=ssm_param, WithDecryption=True)
-                    master_password = response["Parameter"]["Value"]
-                    LOGGER.info("Successfully retrieved master password from SSM")
-                except Exception as e:
-                    LOGGER.error("Failed to fetch master password from SSM: %s", str(e), exc_info=True)
-                    return _response(500, {"message": f"Failed to fetch master password: {str(e)}"})
-        
-        if not master_password:
-            LOGGER.error("Master password not configured")
-            return _response(500, {"message": "Master password not configured"})
-        
-        LOGGER.info("Step 4: Updating user settings in DynamoDB")
+        LOGGER.info("Step 3: Updating user settings in DynamoDB")
         config_store = ConfigStore()
-        config_store.update_user_settings(user_id, menu_sequence, floor_name, hg_user_id, hg_user_pw, master_password)
+        config_store.update_user_settings(user_id, menu_sequence, floor_name, hg_user_id, hg_user_pw)
         
         LOGGER.info("=== UPDATE USER SETTINGS HANDLER COMPLETED SUCCESSFULLY ===")
         return _response(200, {
