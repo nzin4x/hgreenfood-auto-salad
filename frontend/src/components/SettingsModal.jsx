@@ -17,8 +17,9 @@ export default function SettingsModal({ user, onClose, onSaved }) {
         const loadSettings = async () => {
             try {
                 const settings = await api.getUserSettings(user.userId);
-                if (settings.menuSeq && settings.menuSeq.length > 0) {
-                    setMenuSeq(settings.menuSeq.join(','));
+                if (settings.menuSeq) {
+                    // menuSeq is now returned as a string from backend
+                    setMenuSeq(settings.menuSeq);
                 }
                 if (settings.floorNm) {
                     setFloorNm(settings.floorNm);

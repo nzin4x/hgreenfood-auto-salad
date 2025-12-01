@@ -98,6 +98,7 @@ def register_user_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any
             "floorNm": floor_nm,
             "email": email,
             "notificationEmails": [email],  # Enable reservation notifications by default
+            "autoReservationEnabled": True,  # Enable auto-reservation by default
             "devices": devices,
             "_salt": salt,  # Kept for schema compatibility, though KMS doesn't use it for decryption
         }

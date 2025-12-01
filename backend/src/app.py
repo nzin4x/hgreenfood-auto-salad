@@ -122,11 +122,10 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
         if not user_id:
             return _response(400, {"message": "userId is required"})
 
-        master_password = _resolve_master_password(payload)
         service_date = _parse_service_date(payload.get("serviceDate"))
 
         service = _build_service()
-        result = service.run(user_id=user_id, master_password=master_password, service_date=service_date)
+        result = service.run(user_id=user_id, service_date=service_date)
 
         return _response(
             200,
@@ -142,38 +141,70 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
         LOGGER.warning("Client error: %s", error)
         return _response(400, {"message": str(error)})
     except Exception as error:  # pylint: disable=broad-except
-        default_user = os.environ.get("DEFAULT_USER_ID")
-        user_ids = [default_user] if default_user else []
+        LOGGER.exception("API error: %s", error)
+        return _response(500, {"message": str(error)})
 
-    results = []
-    for user_id in user_ids or []:
-        try:
-            preferences = service.config_store.get_user_preferences(user_id)
-            if not preferences.auto_reservation_enabled:
-                LOGGER.info("Auto-reservation disabled for user %s, skipping", user_id)
-                results.append({
-                    "userId": user_id,
-                    "success": False,
-                    "message": "Auto-reservation is disabled",
-                    "skipped": True
-                })
-                continue
-            
-            outcome = service.run(user_id=user_id)
-            results.append(
-                {
-                    "userId": user_id,
-                    "success": outcome.success,
-                    "message": outcome.message,
-                    "targetDate": outcome.target_date.isoformat(),
-                }
-            )
-        except Exception as error:  # pylint: disable=broad-except
-            LOGGER.exception("Reservation attempt failed for %s", user_id)
-            results.append({"userId": user_id, "success": False, "message": str(error)})
 
-    LOGGER.info("Worker completed: %s", results)
-    return {"results": results}
+def worker_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
+    """Worker Lambda handler for scheduled reservation tasks"""
+    LOGGER.info("=== WORKER HANDLER STARTED ===")
+    LOGGER.info("Received worker event: %s", event)
+    
+    try:
+        service = _build_service()
+        
+        # Get all users from DynamoDB instead of using DEFAULT_USER_ID
+        LOGGER.info("Fetching all user profiles from DynamoDB...")
+        user_profiles = service.config_store.get_all_user_profiles()
+        LOGGER.info(f"Found {len(user_profiles)} total user profiles")
+        
+        # Extract user IDs and log them
+        user_ids = []
+        for profile in user_profiles:
+            user_id = profile.get("userId")
+            if user_id:
+                user_ids.append(user_id)
+                # Log user info for processing order visibility
+                auto_enabled = profile.get("autoReservationEnabled", True)
+                menu_seq = profile.get("menuSeq", "N/A")
+                floor_nm = profile.get("floorNm", "N/A")
+                LOGGER.info(f"User found: {user_id}, AutoReserve: {auto_enabled}, MenuSeq: {menu_seq}, Floor: {floor_nm}")
+        
+        LOGGER.info(f"Processing {len(user_ids)} users in order: {user_ids}")
+        
+        results = []
+        for idx, user_id in enumerate(user_ids, 1):
+            LOGGER.info(f"[{idx}/{len(user_ids)}] Processing user: {user_id}")
+            try:
+                preferences = service.config_store.get_user_preferences(user_id)
+                if not preferences.auto_reservation_enabled:
+                    LOGGER.info("Auto-reservation disabled for user %s, skipping", user_id)
+                    results.append({
+                        "userId": user_id,
+                        "success": False,
+                        "message": "Auto-reservation is disabled",
+                        "skipped": True
+                    })
+                    continue
+                
+                outcome = service.run(user_id=user_id)
+                results.append(
+                    {
+                        "userId": user_id,
+                        "success": outcome.success,
+                        "message": outcome.message,
+                        "targetDate": outcome.target_date.isoformat(),
+                    }
+                )
+            except Exception as error:  # pylint: disable=broad-except
+                LOGGER.exception("Reservation attempt failed for %s", user_id)
+                results.append({"userId": user_id, "success": False, "message": str(error)})
+
+        LOGGER.info("Worker completed: %s", results)
+        return {"results": results}
+    except Exception as error:  # pylint: disable=broad-except
+        LOGGER.exception("Worker handler failed: %s", error)
+        return {"results": [{"success": False, "message": str(error)}]}
 
 
 def update_holidays_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
@@ -260,32 +291,3 @@ def _response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _resolve_master_password(payload: Optional[Dict[str, Any]] = None) -> str:
-    if payload:
-        candidate = payload.get("masterPassword") or payload.get("master_password")
-        if candidate:
-            return candidate
-        detail = payload.get("detail")
-        if isinstance(detail, dict):
-            candidate = detail.get("masterPassword") or payload.get("master_password")
-            if candidate:
-                return candidate
-
-    env_password = os.environ.get("MASTER_PASSWORD")
-    if env_password:
-        return env_password
-
-    ssm_param = os.environ.get("MASTER_PASSWORD_SSM_PARAM")
-    if ssm_param:
-        return _fetch_master_password_from_ssm(ssm_param)
-
-    raise ValueError("Master password not supplied")
-
-
-def _fetch_master_password_from_ssm(param_name: str) -> str:
-    client = boto3.client("ssm")
-    response = client.get_parameter(Name=param_name, WithDecryption=True)
-    value = response["Parameter"]["Value"]
-    if not value:
-        raise ValueError(f"SSM parameter '{param_name}' is empty")
-    return value

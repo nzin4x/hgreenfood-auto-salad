@@ -174,21 +174,45 @@ class ConfigStore:
             raise RuntimeError(f"Failed to persist profile for {item.get('userId')}: {error}") from error
 
     def list_users(self) -> List[str]:
-        index_name = os.environ.get("CONFIG_GSI_PK")
+        """Get list of all user IDs (legacy method for compatibility)"""
+        profiles = self.get_all_user_profiles()
+        return [profile.get("userId") for profile in profiles if profile.get("userId")]
+    
+    def get_all_user_profiles(self) -> List[Dict[str, Any]]:
+        """Get all user profiles from DynamoDB with USER# PK"""
+        import logging
+        logger = logging.getLogger()
+        
         try:
-            if index_name:
-                response = self._table.query(
-                    KeyConditionExpression=Key("SK").eq("PROFILE"),
-                    IndexName=index_name,
-                )
-            else:
+            # Scan for all items with PK starting with "USER#" and SK="PROFILE"
+            response = self._table.scan(
+                FilterExpression="begins_with(PK, :pk) AND SK = :sk",
+                ExpressionAttributeValues={
+                    ":pk": "USER#",
+                    ":sk": "PROFILE"
+                }
+            )
+            
+            profiles = response.get("Items", [])
+            
+            # Handle pagination if necessary
+            while 'LastEvaluatedKey' in response:
                 response = self._table.scan(
-                    ProjectionExpression="userId"
+                    FilterExpression="begins_with(PK, :pk) AND SK = :sk",
+                    ExpressionAttributeValues={
+                        ":pk": "USER#",
+                        ":sk": "PROFILE"
+                    },
+                    ExclusiveStartKey=response['LastEvaluatedKey']
                 )
+                profiles.extend(response.get("Items", []))
+                
+            logger.info(f"Found {len(profiles)} user profiles in DynamoDB")
+            return profiles
+            
         except ClientError as error:
-            raise RuntimeError(f"Failed to query configuration table: {error}") from error
-        items = response.get("Items", [])
-        return [item["userId"] for item in items if "userId" in item]
+            logger.error(f"Failed to scan user profiles: {error}")
+            raise RuntimeError(f"Failed to scan user profiles: {error}") from error
     
     def save_exclusion_dates(self, user_id: str, dates: List[str]) -> None:
         """Save user exclusion dates with auto-cleanup of old dates (> 1 month ago)"""

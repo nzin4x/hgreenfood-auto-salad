@@ -50,11 +50,11 @@ def get_user_settings_handler(event: Dict[str, Any], _context: Any) -> Dict[str,
         
         # Get user preferences
         config_store = ConfigStore()
-        preferences = config_store.get_user_preferences(user_id, master_password)
+        preferences = config_store.get_user_preferences(user_id)
         
         return _response(200, {
             "userId": user_id,
-            "menuSeq": preferences.menu_sequence,
+            "menuSeq": ",".join(preferences.menu_sequence),  # Convert back to string format
             "floorNm": preferences.floor_name,
             "exclusionDates": preferences.exclusion_dates
         })

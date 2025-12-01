@@ -293,7 +293,8 @@ export default function DashboardScreen({ user, onLogout }) {
             )}
             
             {/* Immediate Reservation Button */}
-            {!reservations.some(r => r.label === '다음 근무일') && (
+            {/* Only show after 1PM KST and when there's no next workday reservation */}
+            {isPast1PMKST() && !reservations.some(r => r.label === '다음 근무일') && (
                 <button 
                     onClick={handleImmediateReservation}
                     disabled={loading || immediateLoading}
