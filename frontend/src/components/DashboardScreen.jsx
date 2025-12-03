@@ -41,30 +41,46 @@ export default function DashboardScreen({ user, onLogout }) {
         setLoading(true);
         setMessage(null);
         try {
-            const todayStr = getKoreanDate(0);
+            const todayStr = getKoreanDate(0); // YYYY-MM-DD
+            const isPast1PM = isPast1PMKST();
+            
             const data = await api.listReservations(user.userId);
             const list = (data && data.reserveList) ? data.reserveList : [];
 
-            // 날짜 문자열(YYYY-MM-DD)로 변환
+            // prvdDt (YYYYMMDD)를 YYYY-MM-DD로 변환
             const normalize = (d) => formatDate(d);
 
-            const todayItems = list.filter(r => normalize(r.prvdDt) === todayStr);
-
-            // 오늘 이후 날짜들 중 가장 빠른 날짜를 다음 근무일로 간주
-            const futureDates = Array.from(new Set(
-                list.map(r => normalize(r.prvdDt)).filter(d => d > todayStr)
-            )).sort();
-            const nextWorkdayStr = futureDates.length > 0 ? futureDates[0] : null;
-            const nextItems = nextWorkdayStr ? list.filter(r => normalize(r.prvdDt) === nextWorkdayStr) : [];
-
             const newReservations = [];
-            if (todayItems.length > 0) {
-                // 가장 첫 항목만 카드로 표기
-                newReservations.push({ ...todayItems[0], label: '오늘' });
-            }
-            if (nextItems.length > 0 && nextWorkdayStr !== todayStr) {
-                newReservations.push({ ...nextItems[0], label: '다음 근무일' });
-            }
+
+            // 각 예약 항목을 날짜별로 분류
+            list.forEach(item => {
+                const itemDateStr = normalize(item.prvdDt);
+                
+                // prvdDt가 정확히 오늘인지 확인
+                if (itemDateStr === todayStr) {
+                    // 오늘 예약이 있으면 "오늘" 라벨로 추가 (중복 방지)
+                    if (!newReservations.some(r => r.label === '오늘')) {
+                        newReservations.push({ ...item, label: '오늘' });
+                    }
+                } else if (itemDateStr > todayStr) {
+                    // 미래 날짜 중 가장 빠른 것을 "다음 근무일"로 추가
+                    const existingNext = newReservations.find(r => r.label === '다음 근무일');
+                    if (!existingNext) {
+                        newReservations.push({ ...item, label: '다음 근무일' });
+                    } else {
+                        // 더 빠른 날짜가 있으면 교체
+                        const existingDateStr = normalize(existingNext.prvdDt);
+                        if (itemDateStr < existingDateStr) {
+                            const index = newReservations.findIndex(r => r.label === '다음 근무일');
+                            newReservations[index] = { ...item, label: '다음 근무일' };
+                        }
+                    }
+                }
+            });
+
+            // 13시 이후라면 오늘 예약은 의미 없으므로 제거 (선택적)
+            // 단, 카드는 보여주되 회색 처리하는 것이 더 나을 수 있으므로 여기선 유지
+            // UI에서 opacity로 처리됨
 
             setReservations(newReservations);
         } catch (error) {
@@ -339,7 +355,7 @@ export default function DashboardScreen({ user, onLogout }) {
                         cursor: 'pointer'
                     }}
                 >
-                    개인정보 삭제
+                    개인정보 삭제 (탈퇴)
                 </a>
             </div>
 

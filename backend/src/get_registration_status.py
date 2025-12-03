@@ -21,23 +21,25 @@ def get_registration_status_handler(event: Dict[str, Any], _context: Any) -> Dic
         
         dynamodb = boto3.resource("dynamodb")
         table = dynamodb.Table(table_name)
-        
-        # Scan for all profiles
+
+        # Scan for all user profiles whose PK starts with "USER#"
         # Note: Scan is inefficient for large tables, but acceptable for small user base (<100)
+        from boto3.dynamodb.conditions import Attr
+
+        filter_expr = Attr("PK").begins_with("USER#") & Attr("SK").eq("PROFILE")
+
         response = table.scan(
-            FilterExpression="SK = :sk",
-            ExpressionAttributeValues={":sk": "PROFILE"},
+            FilterExpression=filter_expr,
             ProjectionExpression="userId"
         )
-        
+
         items = response.get("Items", [])
         count = len(items)
-        
+
         # Handle pagination if necessary (though unlikely for <100 users)
         while 'LastEvaluatedKey' in response:
             response = table.scan(
-                FilterExpression="SK = :sk",
-                ExpressionAttributeValues={":sk": "PROFILE"},
+                FilterExpression=filter_expr,
                 ProjectionExpression="userId",
                 ExclusiveStartKey=response['LastEvaluatedKey']
             )

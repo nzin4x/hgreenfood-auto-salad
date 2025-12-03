@@ -89,6 +89,10 @@ def api_handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
         from auth_handler import check_device_handler
         return check_device_handler(event, _context)
     
+    if route == "/auth/logout":
+        from logout_handler import logout_handler
+        return logout_handler(event, _context)
+    
     if route == "/user/toggle-auto-reservation":
         from toggle_auto_reservation import toggle_auto_reservation_handler
         return toggle_auto_reservation_handler(event, _context)

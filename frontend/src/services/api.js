@@ -10,6 +10,18 @@ export const api = {
         return response.json();
     },
 
+    getRegistrationStatus: async () => {
+        const response = await fetch(`${API_BASE_URL}/register/status`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.message || '가입 현황 조회 실패');
+        }
+        return response.json();
+    },
+
     sendVerificationCode: async (email) => {
         const response = await fetch(`${API_BASE_URL}/auth/send-code`, {
             method: 'POST',
@@ -170,6 +182,22 @@ export const api = {
         if (!response.ok) {
             const data = await response.json();
             throw new Error(data.message || '제외 날짜 업데이트 실패');
+        }
+        return response.json();
+    },
+
+    logout: async (userId, deviceFingerprint) => {
+        const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                userId,
+                deviceFingerprint
+            })
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.message || '로그아웃 실패');
         }
         return response.json();
     }

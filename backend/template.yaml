@@ -170,6 +170,11 @@ Resources:
           Properties:
             Path: /auth/check-device
             Method: POST
+        Logout:
+          Type: Api
+          Properties:
+            Path: /auth/logout
+            Method: POST
         ToggleAutoReservation:
           Type: Api
           Properties:
