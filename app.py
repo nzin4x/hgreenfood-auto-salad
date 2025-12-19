@@ -513,9 +513,21 @@ def process_missed_reservations(merged_config):
         if reservations:
             confirmed = [r for r in reservations if r.get('prvdDt') == nearest_workday and r.get('rsvStatCd') == 'A']
             if confirmed:
-                is_reserved = True
-                menus = [r.get('conerNm', '알 수 없음') for r in confirmed]
-                logger.info(f"   ✅ {nearest_workday} 이미 예약됨: {', '.join(menus)}")
+                # Regular menu codes (Sandwich, Salad, Bakery, Healthy, Chicken)
+                REGULAR_MENU_CODES = ["0005", "0006", "0007", "0009", "0010"]
+                
+                # Check if any existing reservation is a "Regular Menu"
+                has_regular = any(r.get('conerDvCd') in REGULAR_MENU_CODES for r in confirmed)
+                
+                if has_regular:
+                    is_reserved = True
+                    menus = [r.get('conerNm', '알 수 없음') for r in confirmed]
+                    logger.info(f"   ✅ {nearest_workday} 이미 예약됨: {', '.join(menus)}")
+                else:
+                    # Only special menus are reserved -> Proceed to reserve regular menu
+                    is_reserved = False
+                    menus = [r.get('conerNm', '알 수 없음') for r in confirmed]
+                    logger.info(f"   ℹ️ {nearest_workday} 특별 메뉴만 예약됨({', '.join(menus)}). 일반 메뉴 예약 시도...")
         
         if not is_reserved:
             logger.warning(f"   ⚠️ {nearest_workday} 예약이 누락되었습니다! 즉시 예약 시도합니다.")

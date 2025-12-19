@@ -52,35 +52,46 @@ export default function DashboardScreen({ user, onLogout }) {
 
             const newReservations = [];
 
-            // 각 예약 항목을 날짜별로 분류
-            list.forEach(item => {
+            // Filter for today or future
+            const upcoming = list.filter(item => {
                 const itemDateStr = normalize(item.prvdDt);
-                
-                // prvdDt가 정확히 오늘인지 확인
-                if (itemDateStr === todayStr) {
-                    // 오늘 예약이 있으면 "오늘" 라벨로 추가 (중복 방지)
-                    if (!newReservations.some(r => r.label === '오늘')) {
-                        newReservations.push({ ...item, label: '오늘' });
-                    }
-                } else if (itemDateStr > todayStr) {
-                    // 미래 날짜 중 가장 빠른 것을 "다음 근무일"로 추가
-                    const existingNext = newReservations.find(r => r.label === '다음 근무일');
-                    if (!existingNext) {
-                        newReservations.push({ ...item, label: '다음 근무일' });
-                    } else {
-                        // 더 빠른 날짜가 있으면 교체
-                        const existingDateStr = normalize(existingNext.prvdDt);
-                        if (itemDateStr < existingDateStr) {
-                            const index = newReservations.findIndex(r => r.label === '다음 근무일');
-                            newReservations[index] = { ...item, label: '다음 근무일' };
-                        }
-                    }
-                }
+                return itemDateStr >= todayStr;
             });
 
-            // 13시 이후라면 오늘 예약은 의미 없으므로 제거 (선택적)
-            // 단, 카드는 보여주되 회색 처리하는 것이 더 나을 수 있으므로 여기선 유지
-            // UI에서 opacity로 처리됨
+            // Sort by date
+            upcoming.sort((a, b) => normalize(a.prvdDt).localeCompare(normalize(b.prvdDt)));
+
+            // Take top 3
+            const top3 = upcoming.slice(0, 3);
+
+            // Process labels
+            top3.forEach(item => {
+                const itemDateStr = normalize(item.prvdDt);
+                let label = '';
+                
+                if (itemDateStr === todayStr) {
+                    label = '오늘';
+                } else {
+                    // Check if it's the "next workday" (first future date in the list)
+                    // But since we can have multiple items for the same day, we need to be careful.
+                    // Let's just say if it's not today, it's "예약 예정" or "다음 근무일" if it's the very next one.
+                    
+                    // Simple logic: if it's the first unique date after today, it's "다음 근무일"
+                    // But we might have multiple items for that date.
+                    
+                    // Let's find the first date > todayStr
+                    const firstFutureDate = upcoming.find(r => normalize(r.prvdDt) > todayStr);
+                    const firstFutureDateStr = firstFutureDate ? normalize(firstFutureDate.prvdDt) : null;
+                    
+                    if (itemDateStr === firstFutureDateStr) {
+                        label = '다음 근무일';
+                    } else {
+                        label = '예약 예정';
+                    }
+                }
+                
+                newReservations.push({ ...item, label });
+            });
 
             setReservations(newReservations);
         } catch (error) {

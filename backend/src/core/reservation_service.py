@@ -59,18 +59,36 @@ class ReservationService:
         # 기존 예약 확인
         target_prvd_dt = target_date.strftime("%Y%m%d")
         existing_reservations = self.reservation_client.check_existing_reservations(preferences.raw_payload, target_prvd_dt)
+        
+        # Regular menu codes (Sandwich, Salad, Bakery, Healthy, Chicken)
+        REGULAR_MENU_CODES = ["0005", "0006", "0007", "0009", "0010"]
+        
         if existing_reservations:
-            # 활성 예약이 있으면 스킵
-            reservation_details = existing_reservations[0]
-            attempt = ReservationAttempt(
-                True,
-                f"Reservation already exists: {reservation_details.get('dispNm', 'Unknown')}",
-                target_date,
-                [],
-                {"existingReservation": reservation_details}
-            )
-            self._notify(preferences, attempt, success=True)
-            return attempt
+            # Check if any existing reservation is a "Regular Menu"
+            # If so, we skip because we already have a main meal.
+            # If all existing reservations are "Special Menus" (not in REGULAR_MENU_CODES),
+            # we proceed to allow booking a regular menu (or another special one, though logic implies we want to ensure at least one regular).
+            # Actually, the requirement is: "If menu_corner_map doesn't have it (or it's special), duplicate is allowed."
+            # But here we are checking if we SHOULD reserve.
+            # If we have a regular menu reserved, we stop.
+            # If we only have special menus reserved, we continue (to potentially reserve a regular one).
+            
+            has_regular_reservation = any(r.get('conerDvCd') in REGULAR_MENU_CODES for r in existing_reservations)
+            
+            if has_regular_reservation:
+                reservation_details = existing_reservations[0]
+                attempt = ReservationAttempt(
+                    True,
+                    f"Reservation already exists: {reservation_details.get('dispNm', 'Unknown')}",
+                    target_date,
+                    [],
+                    {"existingReservation": reservation_details}
+                )
+                self._notify(preferences, attempt, success=True)
+                return attempt
+            
+            # If we are here, it means we only have special menus (or none, but 'if existing_reservations' covers that).
+            # We proceed to try to reserve.
 
         attempted = []
         last_error = None
@@ -163,9 +181,14 @@ class ReservationService:
                 return attempt
             last_error = result
             if result.error_message == "동일날짜에 이미 등록된 예약이 존재합니다.":
-                attempt = ReservationAttempt(True, "Reservation already exists", target_date, attempted.copy(), result.raw)
-                self._notify(preferences, attempt, success=True)
-                return attempt
+                # This might happen if we tried to reserve a regular menu but one was just added, or a special menu that conflicts?
+                # But our logic above says we only proceed if NO regular menu exists.
+                # If the API returns this, it means we really can't reserve this specific item.
+                # However, if we are here, it might be that we have a special menu and tried to add a regular one, but the system blocked it?
+                # Or we tried to add a special one and it blocked it?
+                # In any case, we treat it as "Reservation already exists" but since we explicitly tried to reserve, maybe we should continue to next preference?
+                # For now, let's assume if API says no, we stop for this item.
+                pass 
 
         message = last_error.error_message if last_error else "Reservation attempt failed"
         details = last_error.raw if last_error else {}
@@ -191,30 +214,27 @@ class ReservationService:
         weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][attempt.target_date.weekday()]
         status_str = "성공" if attempt.success else "실패"
         
-        # If existing reservation, mark as success but maybe note it?
-        # User requested: "Reservation Date / Result / Reserved Menu"
+        # Menu Name
         menu_name = ""
         if attempt.details:
             menu_name = attempt.details.get("dispNm", "")
             
-        subject = f"[예약 결과] {attempt.target_date.isoformat()} ({weekday_kr}) - {status_str}"
-        if menu_name:
-            subject += f" - {menu_name}"
+        subject = f"[오토샐러드] {attempt.target_date.isoformat()}({weekday_kr}) - {menu_name} 예약됨" if success and menu_name else f"[오토샐러드] {attempt.target_date.isoformat()}({weekday_kr}) - {status_str}"
         
-        # Compact Body
-        body_lines = [
-            f"예약 날짜: {attempt.target_date.isoformat()} ({weekday_kr})",
-            f"예약 결과: {status_str}",
-        ]
+        # Body
+        body_lines = []
+        
+        body_lines.append(f"+ hgreenfood 예약 대상 id : {preferences.user_id}")
         
         if menu_name:
-             body_lines.append(f"예약한 메뉴: {menu_name}")
+             body_lines.append(f"+ 최종 예약된 메뉴 : {menu_name}")
         
         if not attempt.success:
-             body_lines.append(f"메시지: {attempt.message}")
+             body_lines.append(f"+ 예약 결과: {status_str}")
+             body_lines.append(f"+ 메시지: {attempt.message}")
              
         if attempt.attempted_menus:
-             body_lines.append(f"선호 메뉴 순서: {', '.join(attempt.attempted_menus)}")
+             body_lines.append(f"+ 선호 메뉴 순서: {', '.join(attempt.attempted_menus)}")
 
         if success:
              # Next reservation
@@ -222,9 +242,8 @@ class ReservationService:
              holiday_api_key = os.environ.get("HOLIDAY_API_KEY")
              next_date = self._next_service_date(tz, holiday_api_key)
              next_weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][next_date.weekday()]
-             body_lines.append(f"다음 예약 예정: {next_date.strftime('%Y-%m-%d')} ({next_weekday_kr})")
+             body_lines.append(f"+ 다음 예약 예정: {next_date.strftime('%Y-%m-%d')} ({next_weekday_kr}) 13시")
 
-        body_lines.append("")
-        body_lines.append("예약 확인: https://hcafe.hgreenfood.com/ctf/menu/reservation/menuReservation.do")
+        body_lines.append(f"+ 예약 확인 및 설정 : https://hgreenfood-auto-salad.pages.dev/")
         
         self.notifier.send(subject, "\n".join(body_lines), preferences.notification_emails)
