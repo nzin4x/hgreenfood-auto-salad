@@ -210,6 +210,15 @@ class ReservationService:
         if not self.notifier or not preferences.notification_emails:
             return
         
+        # Menu Name Map
+        menu_name_map = {
+            '샌': '샌드위치',
+            '샐': '샐러드',
+            '빵': '베이커리',
+            '헬': '헬시세트',
+            '닭': '닭가슴살'
+        }
+
         # Compact Subject
         weekday_kr = ["월", "화", "수", "목", "금", "토", "일"][attempt.target_date.weekday()]
         status_str = "성공" if attempt.success else "실패"
@@ -217,24 +226,54 @@ class ReservationService:
         # Menu Name
         menu_name = ""
         if attempt.details:
+            # Try to get display name from details, or map from attempted menus if success
             menu_name = attempt.details.get("dispNm", "")
-            
+            if not menu_name and success and attempt.attempted_menus:
+                # If we don't have dispNm but we know what we attempted and succeeded
+                last_attempted = attempt.attempted_menus[-1]
+                menu_name = menu_name_map.get(last_attempted, last_attempted)
+        
+        # If menu_name is still empty but we have a successful attempt with a known code?
+        # The 'details' from reserve_menu usually contains the result which might not have dispNm.
+        # But we can infer it from the attempted menu initial.
+        if success and not menu_name and attempt.attempted_menus:
+             last_attempted = attempt.attempted_menus[-1]
+             menu_name = menu_name_map.get(last_attempted, last_attempted)
+
         subject = f"[오토샐러드] {attempt.target_date.isoformat()}({weekday_kr}) - {menu_name} 예약됨" if success and menu_name else f"[오토샐러드] {attempt.target_date.isoformat()}({weekday_kr}) - {status_str}"
         
         # Body
         body_lines = []
         
-        body_lines.append(f"+ hgreenfood 예약 대상 id : {preferences.user_id}")
+        # 1. Basic Info (Restored)
+        body_lines.append(f"예약 날짜: {attempt.target_date.isoformat()} ({weekday_kr})")
+        body_lines.append(f"예약 결과: {status_str}")
         
         if menu_name:
-             body_lines.append(f"+ 최종 예약된 메뉴 : {menu_name}")
+             body_lines.append(f"최종 예약된 메뉴: {menu_name}")
         
         if not attempt.success:
-             body_lines.append(f"+ 예약 결과: {status_str}")
-             body_lines.append(f"+ 메시지: {attempt.message}")
-             
-        if attempt.attempted_menus:
-             body_lines.append(f"+ 선호 메뉴 순서: {', '.join(attempt.attempted_menus)}")
+             body_lines.append(f"메시지: {attempt.message}")
+
+        # 2. Additional Info
+        body_lines.append("")
+        body_lines.append(f"+ hgreenfood 예약 대상 id : {preferences.user_id}")
+        
+        # Configured Preferences
+        # Map initials to full names
+        pref_menus = [menu_name_map.get(m, m) for m in preferences.menu_sequence]
+        body_lines.append(f"+ 설정된 선호 메뉴: {', '.join(pref_menus)}")
+        
+        # Configured Exclusion Dates
+        if preferences.exclusion_dates:
+            # Sort and format
+            sorted_dates = sorted(preferences.exclusion_dates)
+            # Show only future dates or all? Let's show all for now or maybe next 5?
+            # User just said "include configured holiday info".
+            # Let's list them all but maybe truncate if too many?
+            body_lines.append(f"+ 설정된 휴일(제외일): {', '.join(sorted_dates)}")
+        else:
+            body_lines.append(f"+ 설정된 휴일(제외일): 없음")
 
         if success:
              # Next reservation
